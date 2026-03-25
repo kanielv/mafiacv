@@ -1,14 +1,14 @@
 package app
 
 import (
-	"net/http"
+	"log"
 
 	"github.com/kanielv/mafiacv/backend/internal/transport/rest"
 )
 
 func Run() {
 	router := rest.NewRouter()
-
-	// fmt.Println("Starting server")
-	http.ListenAndServe(":8080", router)
+	if err := router.Run(":8080"); err != nil {
+		log.Fatal(err)
+	}
 }

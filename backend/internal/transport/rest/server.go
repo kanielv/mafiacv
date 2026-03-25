@@ -1,18 +1,13 @@
 package rest
 
-import (
-	"fmt"
-	"net/http"
+import "github.com/gin-gonic/gin"
 
-	"github.com/gorilla/mux"
-)
-
-func NewRouter() *mux.Router {
-	router := mux.NewRouter()
-	router.HandleFunc("/", TestHandler)
+func NewRouter() *gin.Engine {
+	router := gin.Default()
+	router.GET("/", TestHandler)
 	return router
 }
 
-func TestHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello from TestHandler!")
+func TestHandler(c *gin.Context) {
+	c.String(200, "Hello from TestHandler!")
 }

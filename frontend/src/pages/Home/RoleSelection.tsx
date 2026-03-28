@@ -1,75 +1,69 @@
 import { useState } from "react";
 import { Button, Group, Text } from "@mantine/core";
-import { socket } from "./Pages";
-import { Player } from "../../models/player";
 
 interface RoleSelectionProps {
   lobbyId: string;
+  playerCount: number;
+  onChange: (roles: Record<string, number>) => void;
 }
 
-const RoleSelection: React.FC<RoleSelectionProps> = ({ lobbyId }) => {
-  const [mafiaCount, setMafiaCount] = useState<number>(0);
-  const [medicCount, setMedicCount] = useState<number>(0);
+const RoleSelection: React.FC<RoleSelectionProps> = ({
+  playerCount,
+  onChange,
+}) => {
+  const [mafia, setMafia] = useState(0);
+  const [medic, setMedic] = useState(0);
+  const [sheriff, setSheriff] = useState(0);
+  const [jester, setJester] = useState(0);
 
-  const handleIncrement = (
-    setter: React.Dispatch<React.SetStateAction<number>>
+  const total = mafia + medic + sheriff + jester;
+  const townCount = Math.max(playerCount - total, 0);
+
+  const update = (
+    role: string,
+    delta: number,
+    current: number,
+    setter: (n: number) => void,
+    snapshot: Record<string, number>
   ) => {
-    setter((prev) => prev + 1);
+    const next = Math.max(current + delta, 0);
+    setter(next);
+    onChange({ ...snapshot, [role]: next });
   };
 
-  const handleDecrement = (
-    setter: React.Dispatch<React.SetStateAction<number>>
-  ) => {
-    setter((prev) => Math.max(prev - 1, 0));
-  };
+  const snapshot = { mafia, medic, sheriff, jester };
 
-  const createRoleArray = () => {
-    const roles: string[] = [
-      ...Array(mafiaCount).fill("mafia"),
-      ...Array(medicCount).fill("medic"),
-    ];
-    return roles;
-  };
-
-  const selectRoles = (roles: string[]) => {
-    socket.emit("select-roles", roles, lobbyId);
-  };
+  const roles = [
+    { label: "Mafia", key: "mafia", count: mafia, setter: setMafia },
+    { label: "Medic", key: "medic", count: medic, setter: setMedic },
+    { label: "Sheriff", key: "sheriff", count: sheriff, setter: setSheriff },
+    { label: "Jester", key: "jester", count: jester, setter: setJester },
+  ];
 
   return (
     <div>
-      <Group>
-        <Text>Mafia</Text>
-        <Text>{mafiaCount}</Text>
-        <Button onClick={() => handleIncrement(setMafiaCount)} size="xs">
-          ▲
-        </Button>
-        <Button
-          onClick={() => handleDecrement(setMafiaCount)}
-          size="xs"
-          disabled={mafiaCount === 0}
-        >
-          ▼
-        </Button>
-      </Group>
+      {roles.map(({ label, key, count, setter }) => (
+        <Group key={key}>
+          <Text>{label}</Text>
+          <Text>{count}</Text>
+          <Button
+            onClick={() => update(key, 1, count, setter, snapshot)}
+            size="xs"
+            disabled={total >= playerCount}
+          >
+            +
+          </Button>
+          <Button
+            onClick={() => update(key, -1, count, setter, snapshot)}
+            size="xs"
+            disabled={count === 0}
+          >
+            -
+          </Button>
+        </Group>
+      ))}
 
-      <Group>
-        <Text>Medic</Text>
-        <Text>{medicCount}</Text>
-        <Button onClick={() => handleIncrement(setMedicCount)} size="xs">
-          ▲
-        </Button>
-        <Button
-          onClick={() => handleDecrement(setMedicCount)}
-          size="xs"
-          disabled={medicCount === 0}
-        >
-          ▼
-        </Button>
-      </Group>
-
-      <Button onClick={() => selectRoles(createRoleArray())}>
-        Select Roles
-      </Button>
+      <Text>Town: {townCount}</Text>
     </div>
   );
 };

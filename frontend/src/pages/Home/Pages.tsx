@@ -8,14 +8,12 @@ import {
   Text,
   Container,
 } from "@mantine/core";
-import { io } from "socket.io-client";
 import { theme } from "../../theme";
 import RoleSelection from "./RoleSelection";
-import { createPlayer, Player } from "../../models/player";
+import LobbyChat from "../../components/LobbyChat";
+import { Player } from "../../models/player";
 import GoogleTTS from "../../GoogleTTS";
-
-// Connect to the server
-export const socket = io("http://localhost:8000"); // Ensure this matches your server URL
+import { sendEvent, onEvent, offEvent, getSocketId } from "../../socket";
 
 export default function Home() {
   const [lobbyId, setLobbyId] = useState<string | null>(null);
@@ -25,63 +23,64 @@ export default function Home() {
   const [role, setRole] = useState("");
   const [name, setName] = useState("");
   const [story, setStory] = useState("");
+  const [roleConfig, setRoleConfig] = useState<Record<string, number>>({
+    mafia: 0,
+    medic: 0,
+    sheriff: 0,
+    jester: 0,
+  });
 
   useEffect(() => {
-    socket.on("connect", () => {
-      console.log("Connected to server:", socket.id);
-    });
+    const onConnected = (data: { socketId: string }) => {
+      console.log("Connected to server:", data.socketId);
+    };
 
-    // Handle lobby creation
-    socket.on(
-      "lobby-created",
-      (data: { lobbyId: string; players: Player[] }) => {
-        setLobbyId(data.lobbyId);
-        setIsHost(true);
-        setPlayers(data.players);
-      }
-    );
+    const onLobbyCreated = (data: { lobbyId: string; players: Player[] }) => {
+      setLobbyId(data.lobbyId);
+      setIsHost(true);
+      setPlayers(data.players);
+    };
 
-    socket.on("players-updated", (players: Player[]) => {
-      setPlayers(players);
-    });
+    const onPlayersUpdated = (data: { players: Player[] }) => {
+      setPlayers(data.players);
+    };
 
-    // Handle game start event
-    socket.on("game-started", () => {
+    const onGameStarted = () => {
       alert("The game has started!");
-      // Logic to transition to the game screen can be added here
-    });
+    };
 
-    // Handle user disconnect
-    socket.on("user-disconnected", (disconnectedId) => {
+    const onUserDisconnected = (data: { socketId: string }) => {
       setPlayers((prevPlayers) =>
-        prevPlayers.filter((playerId) => playerId !== disconnectedId)
+        prevPlayers.filter((player) => player.socketID !== data.socketId)
       );
-      console.log(`Player with ID ${disconnectedId} has disconnected.`);
-    });
+      console.log(`Player with ID ${data.socketId} has disconnected.`);
+    };
 
-    // save story
-    // socket.on("story-generated", (story) => {
-    //   console.log(story);
-    //   setStory(story);
-    // });
+    const onRolesAssigned = (data: { role: string }) => {
+      console.log("Role assigned:", data.role);
+      setRole(data.role);
+    };
 
-    socket.on("roles-assigned", (role) => {
-      console.log("Role assigned:", role);
-      setRole(role);
-    });
+    onEvent("connected", onConnected);
+    onEvent("lobby-created", onLobbyCreated);
+    onEvent("players-updated", onPlayersUpdated);
+    onEvent("game-started", onGameStarted);
+    onEvent("user-disconnected", onUserDisconnected);
+    onEvent("roles-assigned", onRolesAssigned);
 
-    // Clean up the effect when the component unmounts
     return () => {
-      socket.off("connect");
-      socket.off("lobby-created");
-      socket.off("players-updated");
-      socket.off("game-started");
+      offEvent("connected", onConnected);
+      offEvent("lobby-created", onLobbyCreated);
+      offEvent("players-updated", onPlayersUpdated);
+      offEvent("game-started", onGameStarted);
+      offEvent("user-disconnected", onUserDisconnected);
+      offEvent("roles-assigned", onRolesAssigned);
     };
   }, []);
 
   const createLobby = () => {
     if (name) {
-      socket.emit("create-lobby", name);
+      sendEvent("create-lobby", { name });
     } else {
       console.log("Name is required to create a lobby");
     }
@@ -89,7 +88,7 @@ export default function Home() {
 
   const joinLobby = () => {
     if (inputLobbyId) {
-      socket.emit("join-lobby", inputLobbyId, name);
+      sendEvent("join-lobby", { lobbyId: inputLobbyId, name });
       setLobbyId(inputLobbyId);
       console.log("Joining lobby:", inputLobbyId);
     }
@@ -97,20 +96,19 @@ export default function Home() {
 
   const startGame = () => {
     if (lobbyId) {
-      socket.emit("start-game", lobbyId);
+      sendEvent("start-game", { lobbyId, roles: roleConfig });
       console.log("Game started in lobby:", lobbyId);
     }
   };
 
   const generateStory = () => {
-    socket.emit(
-      "generate-story",
-      "reirere",
-      ["ryder", "wilson", "lazzy"],
-      "lazzy",
-      "ryder",
-      "the beach"
-    );
+    sendEvent("generate-story", {
+      code: "reirere",
+      names: ["ryder", "wilson", "lazzy"],
+      victim: "lazzy",
+      killer: "ryder",
+      location: "the beach",
+    });
     console.log("story created!");
   };
 
@@ -133,7 +131,7 @@ export default function Home() {
                   >
                     Start Game
                   </Button>
-                  <RoleSelection lobbyId={lobbyId} />
+                  <RoleSelection lobbyId={lobbyId} playerCount={players.length} onChange={setRoleConfig} />
                 </>
               ) : (
                 <Text size="lg">Waiting for host to start the game...</Text>
@@ -144,6 +142,7 @@ export default function Home() {
                   <List.Item key={player.socketID}>{player.name}</List.Item>
                 ))}
               </List>
+              <LobbyChat lobbyId={lobbyId} />
               <Title>{role}</Title>
             </div>
           ) : (
@@ -182,12 +181,6 @@ export default function Home() {
               >
                 Join Game
               </Button>
-
-              {/* {joinedLobby && (
-                <Text color="blue">
-                  Waiting for the host to start the game...
-                </Text>
-              )} */}
 
               <Button
                 onClick={() => {

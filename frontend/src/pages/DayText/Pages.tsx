@@ -1,30 +1,41 @@
 import "@mantine/core/styles.css";
 import { Group, Stack, Text, Image, ScrollArea, Button } from "@mantine/core";
 import { useState, useEffect } from "react";
-import { io } from "socket.io-client";
 import '../../index.css';
 import GoogleTTS from "../../GoogleTTS";
+import { sendEvent, onEvent, offEvent } from "../../socket";
 
-
-export const socket = io("http://localhost:8000"); // Ensure this matches your server URL
 
 export default function Layout() {
   const [story, setStory] = useState("");
 
   useEffect(() => {
-    socket.on("connect", () => {
-      console.log("Connected to server:", socket.id);
-    });
+    const onConnected = (data: { socketId: string }) => {
+      console.log("Connected to server:", data.socketId);
+    };
 
-    // save story
-    socket.on("story-generated", (story) => {
-      setStory(story);
-    });
+    const onStoryGenerated = (data: { story: string }) => {
+      setStory(data.story);
+    };
+
+    onEvent("connected", onConnected);
+    onEvent("story-generated", onStoryGenerated);
+
+    return () => {
+      offEvent("connected", onConnected);
+      offEvent("story-generated", onStoryGenerated);
+    };
   }, []);
 
   // generate story via socket listener
   const generateStory = () => {
-    socket.emit("generate-story", 'exampleCode', ['ryder', 'wilson', 'lazzy'], 'lazzy', 'ryder', 'school');
+    sendEvent("generate-story", {
+      code: "exampleCode",
+      names: ["ryder", "wilson", "lazzy"],
+      victim: "lazzy",
+      killer: "ryder",
+      location: "school",
+    });
   }
 
   return (
@@ -54,7 +65,7 @@ export default function Layout() {
                   <Text size="xl" c="white">{story}</Text>
                 </ScrollArea>
               </div>
-          </Group>       
+          </Group>
         </Stack>
       </Group>
     </div>

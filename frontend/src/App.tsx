@@ -11,6 +11,7 @@ import Lobby from "./pages/Lobby/Pages";
 import Night from "./pages/Night/Night";
 import Kitchen from "./pages/Kitchen/Pages";
 import Day from "./pages/DayText/Pages";
+import Game from "./pages/Game/Pages";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/Night" element={<Night />} />
           <Route path="/Kitchen" element={<Kitchen />} />
           <Route path="/Day" element={<Day />} />
+          <Route path="/game" element={<Game />} />
         </Routes>
       </Router>
     </MantineProvider>

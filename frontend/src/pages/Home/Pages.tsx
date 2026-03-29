@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   MantineProvider,
   Button,
@@ -16,6 +17,7 @@ import GoogleTTS from "../../GoogleTTS";
 import { sendEvent, onEvent, offEvent, getSocketId } from "../../socket";
 
 export default function Home() {
+  const navigate = useNavigate();
   const [lobbyId, setLobbyId] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -46,7 +48,7 @@ export default function Home() {
     };
 
     const onGameStarted = () => {
-      alert("The game has started!");
+      console.log("The game has started!");
     };
 
     const onUserDisconnected = (data: { socketId: string }) => {
@@ -59,6 +61,7 @@ export default function Home() {
     const onRolesAssigned = (data: { role: string }) => {
       console.log("Role assigned:", data.role);
       setRole(data.role);
+      navigate("/game", { state: { role: data.role } });
     };
 
     onEvent("connected", onConnected);
@@ -76,7 +79,7 @@ export default function Home() {
       offEvent("user-disconnected", onUserDisconnected);
       offEvent("roles-assigned", onRolesAssigned);
     };
-  }, []);
+  }, [navigate]);
 
   const createLobby = () => {
     if (name) {

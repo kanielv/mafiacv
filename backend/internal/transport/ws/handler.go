@@ -38,12 +38,12 @@ func (h *Hub) handleCreateLobby(client *Client, data json.RawMessage) {
 		return
 	}
 
-	lobby := h.Manager.CreateLobby(client.ID, payload.Name)
-	h.JoinRoom(client.ID, lobby.ID)
+	lobbyID, players := h.Manager.CreateLobby(client.ID, payload.Name)
+	h.JoinRoom(client.ID, lobbyID)
 
 	h.SendToClient(client.ID, MarshalMessage("lobby-created", map[string]any{
-		"lobbyId": lobby.ID,
-		"players": lobby.Players,
+		"lobbyId": lobbyID,
+		"players": players,
 	}))
 }
 
@@ -59,7 +59,7 @@ func (h *Hub) handleJoinLobby(client *Client, data json.RawMessage) {
 		return
 	}
 
-	lobby, err := h.Manager.JoinLobby(payload.LobbyID, client.ID, payload.Name)
+	lobbyID, players, err := h.Manager.JoinLobby(payload.LobbyID, client.ID, payload.Name)
 	if err != nil {
 		h.SendToClient(client.ID, MarshalMessage("error", map[string]string{
 			"message": err.Error(),
@@ -67,10 +67,10 @@ func (h *Hub) handleJoinLobby(client *Client, data json.RawMessage) {
 		return
 	}
 
-	h.JoinRoom(client.ID, lobby.ID)
+	h.JoinRoom(client.ID, lobbyID)
 
 	// Send chat history to the joining player
-	history := h.Manager.GetChatHistory(lobby.ID)
+	history := h.Manager.GetChatHistory(lobbyID)
 	if history == nil {
 		history = []models.ChatMessage{}
 	}
@@ -79,8 +79,8 @@ func (h *Hub) handleJoinLobby(client *Client, data json.RawMessage) {
 	}))
 
 	// Broadcast updated player list to entire lobby
-	h.BroadcastToRoom(lobby.ID, MarshalMessage("players-updated", map[string]any{
-		"players": lobby.Players,
+	h.BroadcastToRoom(lobbyID, MarshalMessage("players-updated", map[string]any{
+		"players": players,
 	}))
 }
 

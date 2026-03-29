@@ -25,16 +25,22 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) CreateLobby(hostSocketID, name string) *models.Lobby {
+func (m *Manager) CreateLobby(hostSocketID, name string) (string, []models.Player) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	id := generateID()
+	for m.lobbies[id] != nil {
+		id = generateID()
+	}
+
+	players := []models.Player{
+		{SocketID: hostSocketID, Name: name, IsAlive: true},
+	}
+
 	lobby := &models.Lobby{
-		ID: id,
-		Players: []models.Player{
-			{SocketID: hostSocketID, Name: name, IsAlive: true},
-		},
+		ID:          id,
+		Players:     players,
 		HostID:      hostSocketID,
 		Started:     false,
 		ChatHistory: []models.ChatMessage{},
@@ -43,19 +49,22 @@ func (m *Manager) CreateLobby(hostSocketID, name string) *models.Lobby {
 
 	m.lobbies[id] = lobby
 	m.playerLobby[hostSocketID] = id
-	return lobby
+
+	result := make([]models.Player, len(players))
+	copy(result, players)
+	return id, result
 }
 
-func (m *Manager) JoinLobby(lobbyID, socketID, name string) (*models.Lobby, error) {
+func (m *Manager) JoinLobby(lobbyID, socketID, name string) (string, []models.Player, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	lobby, ok := m.lobbies[lobbyID]
 	if !ok {
-		return nil, errors.New("lobby not found")
+		return "", nil, errors.New("lobby not found")
 	}
 	if lobby.Started {
-		return nil, errors.New("game already started")
+		return "", nil, errors.New("game already started")
 	}
 
 	lobby.Players = append(lobby.Players, models.Player{
@@ -64,7 +73,10 @@ func (m *Manager) JoinLobby(lobbyID, socketID, name string) (*models.Lobby, erro
 		IsAlive:  true,
 	})
 	m.playerLobby[socketID] = lobbyID
-	return lobby, nil
+
+	result := make([]models.Player, len(lobby.Players))
+	copy(result, lobby.Players)
+	return lobbyID, result, nil
 }
 
 func (m *Manager) RemovePlayer(socketID string) (lobbyID string, remaining []models.Player) {
@@ -97,7 +109,9 @@ func (m *Manager) RemovePlayer(socketID string) (lobbyID string, remaining []mod
 		return lobbyID, nil
 	}
 
-	return lobbyID, lobby.Players
+	result := make([]models.Player, len(lobby.Players))
+	copy(result, lobby.Players)
+	return lobbyID, result
 }
 
 func (m *Manager) SetRoleConfig(lobbyID, hostID string, config models.RoleConfig) error {
@@ -143,7 +157,11 @@ func (m *Manager) GetRoleConfig(lobbyID string) models.RoleConfig {
 	if !ok {
 		return nil
 	}
-	return lobby.RoleConfig
+	result := make(models.RoleConfig, len(lobby.RoleConfig))
+	for k, v := range lobby.RoleConfig {
+		result[k] = v
+	}
+	return result
 }
 
 func (m *Manager) StartGame(lobbyID string) ([]models.Player, error) {
@@ -209,12 +227,12 @@ func (m *Manager) StartGame(lobbyID string) ([]models.Player, error) {
 	return result, nil
 }
 
-func (m *Manager) GetLobby(lobbyID string) (*models.Lobby, bool) {
+func (m *Manager) LobbyExists(lobbyID string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	lobby, ok := m.lobbies[lobbyID]
-	return lobby, ok
+	_, ok := m.lobbies[lobbyID]
+	return ok
 }
 
 func (m *Manager) GetPlayersInLobby(lobbyID string) []models.Player {
@@ -225,7 +243,9 @@ func (m *Manager) GetPlayersInLobby(lobbyID string) []models.Player {
 	if !ok {
 		return nil
 	}
-	return lobby.Players
+	result := make([]models.Player, len(lobby.Players))
+	copy(result, lobby.Players)
+	return result
 }
 
 func (m *Manager) AddChatMessage(lobbyID string, msg models.ChatMessage) {
@@ -251,7 +271,9 @@ func (m *Manager) GetChatHistory(lobbyID string) []models.ChatMessage {
 	if !ok {
 		return nil
 	}
-	return lobby.ChatHistory
+	result := make([]models.ChatMessage, len(lobby.ChatHistory))
+	copy(result, lobby.ChatHistory)
+	return result
 }
 
 // GetPlayerName returns the name of a player by socket ID.

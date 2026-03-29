@@ -479,7 +479,7 @@ func TestIntegration_Disconnect_LastPlayer(t *testing.T) {
 	lobbyID := createData.LobbyID
 
 	// Verify lobby exists
-	if _, ok := hub.Manager.GetLobby(lobbyID); !ok {
+	if !hub.Manager.LobbyExists(lobbyID) {
 		t.Fatal("lobby should exist before disconnect")
 	}
 
@@ -490,7 +490,7 @@ func TestIntegration_Disconnect_LastPlayer(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Lobby should be deleted
-	if _, ok := hub.Manager.GetLobby(lobbyID); ok {
+	if hub.Manager.LobbyExists(lobbyID) {
 		t.Error("expected lobby to be deleted after last player disconnects")
 	}
 }

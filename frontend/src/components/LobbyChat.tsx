@@ -2,15 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { TextInput, Button } from "@mantine/core";
 import { sendEvent, onEvent, offEvent } from "../socket";
 import { ChatMessage } from "../models/player";
+import { useGame } from "../context/GameContext";
 
-interface LobbyChatProps {
-  lobbyId: string;
-}
-
-export default function LobbyChat({ lobbyId }: LobbyChatProps) {
+export default function LobbyChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { lobbyId } = useGame();
 
   useEffect(() => {
     const onChatHistory = (data: { messages: ChatMessage[] }) => {

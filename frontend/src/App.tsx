@@ -17,22 +17,22 @@ import { GameProvider } from "./context/GameContext";
 export default function App() {
   return (
     <MantineProvider theme={theme}>
-      <GameProvider>
         <Router>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/Ryder" element={<Ryder />} />
-            <Route path="/Michelle" element={<Michelle />} />
-            <Route path="/Rules" element={<Rules />} />
-            <Route path="/Lobby" element={<Lobby />} />
-            <Route path="/Night" element={<Night />} />
-            <Route path="/Kitchen" element={<Kitchen />} />
-            <Route path="/Day" element={<Day />} />
-            <Route path="/game" element={<Game />} />
-          </Routes>
+          <GameProvider>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/Ryder" element={<Ryder />} />
+              <Route path="/Michelle" element={<Michelle />} />
+              <Route path="/Rules" element={<Rules />} />
+              <Route path="/lobby" element={<Lobby />} />
+              <Route path="/Night" element={<Night />} />
+              <Route path="/Kitchen" element={<Kitchen />} />
+              <Route path="/Day" element={<Day />} />
+              <Route path="/game" element={<Game />} />
+            </Routes>
+          </GameProvider>
         </Router>
-      </GameProvider>
     </MantineProvider>
   );
 }

@@ -15,9 +15,10 @@ import LobbyChat from "../../components/LobbyChat";
 import { Player } from "../../models/player";
 import GoogleTTS from "../../GoogleTTS";
 import { sendEvent, onEvent, offEvent, getSocketId } from "../../socket";
+import { useGame } from "../../context/GameContext";
 
 export default function Home() {
-  const { name, setName, createLobby, joinLobby } = useGame();
+  const { name, setName, lobbyId, isHost, createLobby, joinLobby, startGame, players, setRoleConfig, role } = useGame();
   const [inputLobbyId, setInputLobbyId] = useState("");
   const [story, setStory] = useState("");
   
@@ -92,7 +93,7 @@ export default function Home() {
               <Button
                 onClick={() => {
                   if (name && inputLobbyId) {
-                    joinLobby();
+                    joinLobby(inputLobbyId);
                   } else {
                     console.log("Name and join code are required");
                   }

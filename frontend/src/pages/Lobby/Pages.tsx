@@ -1,75 +1,95 @@
-import "@mantine/core/styles.css";
-import { 
-  Button,
-  Group,
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Container,
+  Grid,
+  Paper,
   Stack,
+  Group,
+  Title,
   Text,
-  CopyButton,
-  ScrollArea
+  Button,
+  ScrollArea,
 } from "@mantine/core";
-import { IconSettings } from '@tabler/icons-react';
-import '../../index.css';
-import LobbyPlayer from '../../components/lobbyPlayer'
+import { useGame } from "../../context/GameContext";
+import LobbyChat from "../../components/LobbyChat";
+import RoleSelection from "../Home/RoleSelection";
 
-export default function Layout() {
+export default function Lobby() {
+  const navigate = useNavigate();
+  const { lobbyId, isHost, players, setRoleConfig, startGame } = useGame();
+
+  useEffect(() => {
+    if (!lobbyId) navigate("/");
+  }, [lobbyId, navigate]);
+
+  if (!lobbyId) return null;
+
   return (
-    <div className="bg-mafiaBlack-default min-h-screen p-4">
-      {/* Header */}
-      <Group justify="space-between" style={{ marginBottom: '40px' }}>
-        <img src="/images/cotton_velvet.jpg"  className="w-12 h-12 border-transparent hover:border-white border-2" />
-        <Group>
-          <h1 className= "underline text-slate-100 hover:text-red-600">home</h1>
-          <img src="/images/github_logo.webp"
-          className= "w-12 h-12 border-transparent hover:border-white border-2" 
-          onClick={() => {window.open('https://github.com/AntonCSalvador/mafiacv', '_blank'); console.log("test");}} />
-        </Group>
+    <Container size="lg" py="xl">
+      <Group justify="space-between" mb="lg">
+        <Title order={2}>Lobby: {lobbyId}</Title>
+        <Button
+          variant="light"
+          onClick={() => navigator.clipboard.writeText(lobbyId)}
+        >
+          Copy Code
+        </Button>
       </Group>
-      {/* End header */}
-      <Stack mt="xs" justify="center" align="center">
-        <Group>
-          <Text size="md" color="red">Location: Beabadoobee Concert</Text>
-        </Group>
-        <Group>
-          <Text size="md" color="red">Invite Code: </Text>
-          <CopyButton value="https://www.youtube.com/">
-            {({ copied, copy }) => (
-              <Button color={copied ? '#3E8E7E' : '#E94560'} onClick={copy}>
-                {copied ? 'Copied code' : 'CODE'}
-              </Button>
-            )}
-          </CopyButton>
-          <Button color="#E94560">
-              Theme
-          </Button>
-        </Group>
-        <Group className="border-4 border-mafiaRed-default rounded-lg p-4">
+
+      <Grid gutter="md">
+        <Grid.Col span={4}>
+          <Paper shadow="xs" p="md" radius="md" withBorder>
+            <Stack>
+              <Title order={4}>Players ({players.length})</Title>
+              <ScrollArea h={400}>
+                <Stack gap="xs">
+                  {players.map((player) => (
+                    <Text key={player.socketID}>{player.name}</Text>
+                  ))}
+                </Stack>
+              </ScrollArea>
+              {!isHost && (
+                <Text c="dimmed" ta="center">
+                  Waiting for host to start the game...
+                </Text>
+              )}
+            </Stack>
+          </Paper>
+        </Grid.Col>
+
+        <Grid.Col span={8}>
           <Stack>
-            <Group>
-              <Text size="md" color="white">Everyone's Ready</Text>
-              <Button color="#3E8E7E" onClick={() => console.log("hello")}>
-                Start
-              </Button>
-              <Button variant="outline" color="#E94560">
-                <IconSettings size={24} stroke={2} />
-              </Button>
-            </Group>
-            <Group justify="center" align="center">
-              <div className="min-w-[100%] w-[100%] bg-mafiaBlack-default p-4">
-                <ScrollArea h={300}>
-                  <LobbyPlayer name="Beabadoobee"/>
-                  <LobbyPlayer name="Gojo"/>
-                  <LobbyPlayer name="Clairo"/>
-                  <LobbyPlayer name="Lasagna Field"/>
-                  <LobbyPlayer name="Hanni Pham"/>
-                  <LobbyPlayer name="COTTONVELVET"/>
-                  <LobbyPlayer name="Kaniel"/>
-                  <LobbyPlayer name="Joey"/>
-                </ScrollArea>
-              </div>
-            </Group>
+            <Paper shadow="xs" p="md" radius="md" withBorder>
+              <Title order={4} mb="sm">
+                Chat
+              </Title>
+              <LobbyChat />
+            </Paper>
+
+            {isHost && (
+              <Paper shadow="xs" p="md" radius="md" withBorder>
+                <Title order={4} mb="sm">
+                  Role Setup
+                </Title>
+                <RoleSelection
+                  lobbyId={lobbyId}
+                  playerCount={players.length}
+                  onChange={setRoleConfig}
+                />
+                <Button
+                  fullWidth
+                  mt="md"
+                  size="md"
+                  onClick={startGame}
+                >
+                  Start Game
+                </Button>
+              </Paper>
+            )}
           </Stack>
-        </Group>        
-      </Stack>
-    </div>
+        </Grid.Col>
+      </Grid>
+    </Container>
   );
 }

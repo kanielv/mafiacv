@@ -73,8 +73,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     const createLobby = () => sendEvent("create-lobby", { name });
     
-    const joinLobby = (code: string) =>
+    const joinLobby = (code: string) => {
         sendEvent("join-lobby", { lobbyId: code, name });
+        setLobbyId(code);
+        setIsHost(false);
+        navigate('/lobby');
+    };
 
     const startGame = () =>
         sendEvent("start-game", { lobbyId, roles: roleConfig });

@@ -40,33 +40,6 @@ export default function Home() {
           <Title order={2}>
             {lobbyId ? `Lobby ID: ${lobbyId}` : "Welcome to the Game!"}
           </Title>
-
-          {lobbyId ? (
-            <div>
-              {isHost ? (
-                <>
-                  <Button
-                    onClick={startGame}
-                    color="blue"
-                    style={{ marginBottom: "20px" }}
-                  >
-                    Start Game
-                  </Button>
-                  <RoleSelection lobbyId={lobbyId} playerCount={players.length} onChange={setRoleConfig} />
-                </>
-              ) : (
-                <Text size="lg">Waiting for host to start the game...</Text>
-              )}
-              <Text size="lg">Players:</Text>
-              <List>
-                {players.map((player) => (
-                  <List.Item key={player.socketID}>{player.name}</List.Item>
-                ))}
-              </List>
-              <LobbyChat lobbyId={lobbyId} />
-              <Title>{role}</Title>
-            </div>
-          ) : (
             <div>
               <Button
                 onClick={createLobby}
@@ -115,7 +88,6 @@ export default function Home() {
 
               <GoogleTTS placeholderText={story} />
             </div>
-          )}
         </div>
       </div>
     </MantineProvider>

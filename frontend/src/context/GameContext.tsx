@@ -43,7 +43,7 @@ interface GameContextValue {
 
 const GameContext = createContext<GameContextValue | null>(null);
 
-const INTRO_BEAT_MS = 3000;
+const INTRO_BEAT_MS = 15000;
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
     const navigate = useNavigate();

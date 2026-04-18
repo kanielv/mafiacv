@@ -1,12 +1,17 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"time"
 
 	"github.com/kanielv/mafiacv/backend/internal/models"
+	"github.com/kanielv/mafiacv/backend/internal/storyclient"
 )
+
+const storyIntroTimeout = 60 * time.Second
+const defaultStoryTheme = "classic noir"
 
 // HandleMessage dispatches incoming WebSocket messages by event type.
 func (h *Hub) HandleMessage(client *Client, msg models.WSMessage) {
@@ -121,6 +126,56 @@ func (h *Hub) handleStartGame(client *Client, data json.RawMessage) {
 			"role": p.Role,
 		}))
 	}
+
+	// Fire-and-forget narration. Gemini can take 5–30s; we don't block the WS
+	// response on it. On failure we log and drop — the frontend should render
+	// without narration rather than error.
+	go h.generateGameIntro(payload.LobbyID, players, h.Manager.GetRoleConfig(payload.LobbyID))
+}
+
+func (h *Hub) generateGameIntro(lobbyID string, players []models.Player, roles models.RoleConfig) {
+	if h.Story == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), storyIntroTimeout)
+	defer cancel()
+
+	names := make([]string, 0, len(players))
+	storyPlayers := make([]storyclient.Player, 0, len(players))
+	for _, p := range players {
+		names = append(names, p.Name)
+		storyPlayers = append(storyPlayers, storyclient.Player{Name: p.Name, IsAlive: p.IsAlive})
+	}
+	roleConfig := map[string]int(roles)
+
+	if err := h.Story.InitGame(ctx, storyclient.InitRequest{
+		LobbyID:    lobbyID,
+		Theme:      defaultStoryTheme,
+		Players:    names,
+		RoleConfig: roleConfig,
+	}); err != nil {
+		log.Printf("story init_game for %s: %v", lobbyID, err)
+		return
+	}
+
+	resp, err := h.Story.GenerateStory(ctx, storyclient.GenerateRequest{
+		LobbyID:    lobbyID,
+		StoryType:  "game_intro",
+		Round:      0,
+		Players:    storyPlayers,
+		RoleConfig: roleConfig,
+	})
+	if err != nil {
+		log.Printf("story generate game_intro for %s: %v", lobbyID, err)
+		return
+	}
+
+	h.BroadcastToRoom(lobbyID, MarshalMessage("story-narration", map[string]any{
+		"storyType": resp.StoryType,
+		"story":     resp.Story,
+		"round":     resp.Round,
+	}))
 }
 
 func (h *Hub) handleChatMessage(client *Client, data json.RawMessage) {

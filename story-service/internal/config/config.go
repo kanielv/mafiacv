@@ -8,9 +8,11 @@ import (
 )
 
 type Config struct {
-	Port         string
-	GeminiAPIKey string
-	GeminiModel  string
+	Port          string
+	GeminiAPIKey  string
+	GeminiModel   string
+	MCPBinaryPath string
+	MCPDBPath     string
 }
 
 func Load() *Config {
@@ -20,9 +22,11 @@ func Load() *Config {
 		log.Fatal("GEMINI_API_KEY is required")
 	}
 	return &Config{
-		Port:         getEnv("PORT", ":8090"),
-		GeminiAPIKey: key,
-		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+		Port:          getEnv("PORT", ":8090"),
+		GeminiAPIKey:  key,
+		GeminiModel:   getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+		MCPBinaryPath: getEnv("MCP_BINARY_PATH", "../mcp-server/mcp-server"),
+		MCPDBPath:     getEnv("MCP_DB_PATH", "../mcp-server/mcp-server.db"),
 	}
 }
 

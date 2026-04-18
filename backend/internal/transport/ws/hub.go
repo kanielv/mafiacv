@@ -1,11 +1,21 @@
 package ws
 
 import (
+	"context"
 	"log"
 	"sync"
 
 	"github.com/kanielv/mafiacv/backend/internal/lobby"
+	"github.com/kanielv/mafiacv/backend/internal/storyclient"
 )
+
+// StoryClient is the contract the Hub needs from the story-service client.
+// Kept narrow so tests can supply a stub without real HTTP.
+type StoryClient interface {
+	InitGame(ctx context.Context, r storyclient.InitRequest) error
+	GenerateStory(ctx context.Context, r storyclient.GenerateRequest) (storyclient.GenerateResponse, error)
+	CleanupGame(ctx context.Context, lobbyID string) error
+}
 
 type Hub struct {
 	Clients    map[string]*Client
@@ -13,16 +23,18 @@ type Hub struct {
 	Register   chan *Client
 	Unregister chan *Client
 	Manager    *lobby.Manager
+	Story      StoryClient
 	mu         sync.RWMutex
 }
 
-func NewHub(manager *lobby.Manager) *Hub {
+func NewHub(manager *lobby.Manager, story StoryClient) *Hub {
 	return &Hub{
 		Clients:    make(map[string]*Client),
 		Rooms:      make(map[string]map[string]*Client),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
 		Manager:    manager,
+		Story:      story,
 	}
 }
 

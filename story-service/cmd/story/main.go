@@ -6,27 +6,32 @@ import (
 
 	"github.com/kanielv/mafiacv/story-service/internal/config"
 	"github.com/kanielv/mafiacv/story-service/internal/gemini"
+	"github.com/kanielv/mafiacv/story-service/internal/mcp"
 	"github.com/kanielv/mafiacv/story-service/internal/server"
+	"github.com/kanielv/mafiacv/story-service/internal/story"
 )
 
 func main() {
 	cfg := config.Load()
 
 	ctx := context.Background()
-	client, err := gemini.New(ctx, cfg.GeminiAPIKey, cfg.GeminiModel)
+	geminiClient, err := gemini.New(ctx, cfg.GeminiAPIKey, cfg.GeminiModel)
 	if err != nil {
 		log.Fatalf("gemini init: %v", err)
 	}
 
-	systemPrompt := "You are a dramatic noir narrator for a Mafia party game. Respond in 3-5 sentences."
-	userPrompt := "Night 1 recap: the mafia killed Alice. The medic saved no one. Narrate the town waking up."
-
-	story, err := client.Generate(ctx, systemPrompt, userPrompt)
+	mcpClient, err := mcp.New(ctx, cfg.MCPBinaryPath, cfg.MCPDBPath)
 	if err != nil {
-		log.Fatalf("gemini test generate: %v", err)
+		log.Fatalf("mcp init: %v", err)
 	}
+	defer func() {
+		if err := mcpClient.Close(); err != nil {
+			log.Printf("mcp close: %v", err)
+		}
+	}()
 
-	log.Printf("gemini test story: %s", story)
-	srv := server.New(cfg)
+	svc := story.New(geminiClient, mcpClient)
+
+	srv := server.New(cfg, svc, mcpClient)
 	server.Run(srv)
 }

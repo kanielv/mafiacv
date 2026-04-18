@@ -13,9 +13,15 @@ import (
 	"github.com/kanielv/mafiacv/story-service/internal/config"
 )
 
-func New(cfg *config.Config) *http.Server {
+type deps struct {
+	story storyService
+	mcp   mcpPinger
+}
+
+func New(cfg *config.Config, svc storyService, mcpClient mcpPinger) *http.Server {
 	router := gin.Default()
-	registerRoutes(router)
+	d := &deps{story: svc, mcp: mcpClient}
+	registerRoutes(router, d)
 
 	return &http.Server{
 		Addr:    cfg.Port,
@@ -23,13 +29,14 @@ func New(cfg *config.Config) *http.Server {
 	}
 }
 
-func registerRoutes(r *gin.Engine) {
+func registerRoutes(r *gin.Engine, d *deps) {
 	v1 := r.Group("/api/v1")
-	v1.GET("/health", healthHandler)
-}
+	v1.GET("/health", d.health)
 
-func healthHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	s := v1.Group("/story")
+	s.POST("/init", d.initGame)
+	s.POST("/generate", d.generate)
+	s.POST("/cleanup", d.cleanup)
 }
 
 func Run(srv *http.Server) {

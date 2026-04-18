@@ -19,7 +19,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, *Hub) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	mgr := lobby.NewManager()
-	hub := NewHub(mgr)
+	hub := NewHub(mgr, nil)
 	go hub.Run()
 	router := gin.New()
 	router.GET("/ws", ServeWS(hub))

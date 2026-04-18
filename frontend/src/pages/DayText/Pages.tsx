@@ -1,73 +1,146 @@
 import "@mantine/core/styles.css";
-import { Group, Stack, Text, Image, ScrollArea, Button } from "@mantine/core";
-import { useState, useEffect } from "react";
+import { Box, Grid, Group, Loader, ScrollArea, Stack, Text, Title } from "@mantine/core";
+import { Navigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import '../../index.css';
-import GoogleTTS from "../../GoogleTTS";
-import { sendEvent, onEvent, offEvent } from "../../socket";
+import { useGame } from "../../context/GameContext";
+import TypewriterText from "../../components/TypewriterText";
+import LobbyChat from "../../components/LobbyChat";
 
+const DISCUSSION_SECONDS = 10;
 
-export default function Layout() {
-  const [story, setStory] = useState("");
+const panelRed = {
+  border: "4px solid #E94560",
+  borderRadius: "0.5rem",
+  backgroundColor: "rgba(29,31,39,0.85)",
+} as const;
+
+const panelTeal = {
+  border: "4px solid #3E8E7E",
+  borderRadius: "0.5rem",
+  backgroundColor: "rgba(29,31,39,0.85)",
+} as const;
+
+export default function Day() {
+  const { narration, players, round, role, dayStartAlive, isHost, endDiscussion } = useGame();
+
+  const [deathsRevealed, setDeathsRevealed] = useState(false);
+  const [discussionActive, setDiscussionActive] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(DISCUSSION_SECONDS);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const story =
+    narration?.storyType === "night_recap" && narration.round === round
+      ? narration.story
+      : "";
+
+  const startDiscussion = () => {
+    setDeathsRevealed(true);
+    if (discussionActive) return;
+    setDiscussionActive(true);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      setSecondsLeft(prev => {
+        if (prev <= 1) {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          // Host drives the transition; everyone else is navigated by the
+          // server's phase-changed broadcast.
+          if (isHost) endDiscussion();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   useEffect(() => {
-    const onConnected = (data: { socketId: string }) => {
-      console.log("Connected to server:", data.socketId);
-    };
-
-    const onStoryGenerated = (data: { story: string }) => {
-      setStory(data.story);
-    };
-
-    onEvent("connected", onConnected);
-    onEvent("story-generated", onStoryGenerated);
-
     return () => {
-      offEvent("connected", onConnected);
-      offEvent("story-generated", onStoryGenerated);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
 
-  // generate story via socket listener
-  const generateStory = () => {
-    sendEvent("generate-story", {
-      code: "exampleCode",
-      names: ["ryder", "wilson", "lazzy"],
-      victim: "lazzy",
-      killer: "ryder",
-      location: "school",
-    });
-  }
+  if (!role) return <Navigate to="/" replace />;
 
   return (
+    <div className="bg-mafiaBlack-default min-h-screen p-4">
+      <Stack gap="md" maw={1100} mx="auto">
+        <Group justify="space-between" wrap="nowrap">
+          <Title order={2} style={{ color: "#E94560", letterSpacing: "0.1em" }}>
+            DAY {round}
+          </Title>
+          {/* <GoogleTTS placeholderText={story} /> */}
+        </Group>
 
-    <div className="bg-mafiaBlack-default min-h-screen items-center">
-      <Group justify="center" align="center" gap={50} className="flex flex-col min-h-screen md:flex-row gap-4 w-full border-4 border-blue-500">
-        <Stack align="center" justify="center" className="w-full md:w-1/3">
-          <Stack align="center" justify="center" className="w-full border-4 border-blue-500">
-            <Text size="lg" c="white" mt="xs">Theme: L'Checkers</Text>
-            <Image radius="md" mb="xs" mr="xs" ml="xs" src="https://raw.githubusercontent.com/mantinedev/mantine/master/.demo/images/bg-7.png" className="border-4 border-mafiaRed-default" />
-          </Stack>
-          <Group>
-            <GoogleTTS placeholderText={story} />
-            <Button
-              onClick={() => {generateStory();}}
-              color="green"
-              style={{marginLeft: "20px"}}
-            >
-              Generate Story
-            </Button>
-          </Group>
-        </Stack>
-        <Stack mt="sm" className="w-full md:w-1/3 border-4 border-mafiaRed-default rounded-md">
-          <Group justify="center" align="center">
-              <div className="min-w-[100%] w-[100%] bg-mafiaBlack-default p-4">
-                <ScrollArea h={400}>
-                  <Text size="xl" c="white">{story}</Text>
+        <Grid gutter="md">
+          <Grid.Col span={{ base: 12, md: 8 }}>
+            <Box p="lg" style={panelRed}>
+              <Stack gap="sm">
+                <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
+                  Night Recap
+                </Text>
+                <ScrollArea h={420}>
+                  {story ? (
+                    <TypewriterText
+                      text={story}
+                      size="lg"
+                      c="white"
+                      onDone={startDiscussion}
+                    />
+                  ) : (
+                    <Group gap="sm">
+                      <Loader size="sm" color="#E94560" />
+                      <Text c="dimmed">The narrator is preparing the tale...</Text>
+                    </Group>
+                  )}
                 </ScrollArea>
-              </div>
-          </Group>
-        </Stack>
-      </Group>
+              </Stack>
+            </Box>
+          </Grid.Col>
+
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <Box p="md" style={panelTeal}>
+              <Stack gap="xs">
+                <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
+                  Players
+                </Text>
+                {players.map(p => {
+                  const alive = deathsRevealed
+                    ? p.isAlive
+                    : dayStartAlive[p.socketID] ?? p.isAlive;
+                  return (
+                    <Text
+                      key={p.socketID}
+                      c={alive ? "white" : "dimmed"}
+                      td={alive ? undefined : "line-through"}
+                    >
+                      {p.name}
+                    </Text>
+                  );
+                })}
+              </Stack>
+            </Box>
+          </Grid.Col>
+        </Grid>
+
+        {discussionActive && (
+          <Box p="lg" style={panelTeal}>
+            <Stack gap="sm">
+              <Group justify="space-between">
+                <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
+                  Discussion
+                </Text>
+                <Text c="#3E8E7E" fw={700}>
+                  0:{secondsLeft.toString().padStart(2, "0")}
+                </Text>
+              </Group>
+              <LobbyChat />
+            </Stack>
+          </Box>
+        )}
+      </Stack>
     </div>
   );
 }

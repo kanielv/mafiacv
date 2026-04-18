@@ -17,7 +17,20 @@ export interface SheriffResult {
     round: number;
 }
 
-export type Phase = 'lobby' | 'intro' | 'night' | 'ended';
+export type Phase = 'lobby' | 'intro' | 'night' | 'day' | 'nomination' | 'defense' | 'vote' | 'vote-recap' | 'ended';
+
+export interface Nominee {
+    id: string;
+    name: string;
+}
+
+export interface VoteResult {
+    nomineeId: string;
+    nomineeName: string;
+    eliminated: boolean;
+    yesVotes: number;
+    noVotes: number;
+}
 
 interface GameContextValue {
     lobbyId: string | null;
@@ -34,16 +47,29 @@ interface GameContextValue {
     phase: Phase;
     round: number;
     nightSubmitted: boolean;
+    nominationSubmitted: boolean;
+    voteSubmitted: boolean;
     sheriffResult: SheriffResult | null;
+    dayStartAlive: Record<string, boolean>;
+    nominee: Nominee | null;
+    voteResult: VoteResult | null;
     createLobby: () => void;
     joinLobby: (code: string) => void;
     startGame: () => void;
     submitNightAction: (action: 'kill' | 'investigate' | 'protect', targetId: string) => void;
+    triggerNightTransition: () => void;
+    endDiscussion: () => void;
+    submitNomination: (targetId: string) => void;
+    submitDayVote: (vote: boolean) => void;
+    endVoteRecap: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
 
-const INTRO_BEAT_MS = 15000;
+// Linger on the Night screen after the server resolves the night so the
+// last actor to submit (especially sheriff) can read their result before
+// the Day page takes over.
+const DAY_TRANSITION_DELAY_MS = 5000;
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
     const navigate = useNavigate();
@@ -59,13 +85,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const [phase, setPhase] = useState<Phase>('lobby');
     const [round, setRound] = useState<number>(0);
     const [nightSubmitted, setNightSubmitted] = useState<boolean>(false);
+    const [nominationSubmitted, setNominationSubmitted] = useState<boolean>(false);
+    const [voteSubmitted, setVoteSubmitted] = useState<boolean>(false);
     const [sheriffResult, setSheriffResult] = useState<SheriffResult | null>(null);
+    const [dayStartAlive, setDayStartAlive] = useState<Record<string, boolean>>({});
+    const [nominee, setNominee] = useState<Nominee | null>(null);
+    const [voteResult, setVoteResult] = useState<VoteResult | null>(null);
 
     const lobbyIdRef = useRef<string | null>(null);
+    const playersRef = useRef<Player[]>([]);
     const roundRef = useRef<number>(0);
     const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const dayTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => { lobbyIdRef.current = lobbyId; }, [lobbyId]);
+    useEffect(() => { playersRef.current = players; }, [players]);
     useEffect(() => { roundRef.current = round; }, [round]);
 
     useEffect(() => {
@@ -91,20 +125,93 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         };
 
         const onStoryNarration = (data: Narration) => {
-            if (data.storyType !== 'game_intro') {
-                console.log('story-narration (unhandled type):', data.storyType);
+            if (data.storyType === 'game_intro') {
+                setNarration(data);
                 return;
             }
-            setNarration(data);
-            if (introTimerRef.current) clearTimeout(introTimerRef.current);
-            introTimerRef.current = setTimeout(() => {
-                setPhase('night');
+            if (data.storyType === 'night_recap') {
+                setNarration(data);
+                return;
+            }
+            if (data.storyType === 'vote_recap') {
+                setNarration(data);
+                return;
+            }
+            console.log('story-narration (unhandled type):', data.storyType);
+        };
+
+        const onPhaseChanged = (data: {
+            phase: Phase;
+            round: number;
+            nomineeId?: string;
+            nomineeName?: string;
+            voteResult?: VoteResult;
+        }) => {
+            setPhase(data.phase);
+            setRound(data.round);
+            if (data.phase === 'day') {
+                // Snapshot alive state *before* the server's subsequent
+                // players-updated applies night deaths, so the Day page can
+                // keep showing everyone as alive until the recap finishes.
+                setDayStartAlive(
+                    Object.fromEntries(playersRef.current.map(p => [p.socketID, p.isAlive]))
+                );
+                // Hold on the Night view for a beat so the last role to
+                // confirm (especially sheriff) can read their result.
+                if (dayTransitionTimerRef.current) clearTimeout(dayTransitionTimerRef.current);
+                dayTransitionTimerRef.current = setTimeout(() => {
+                    setNightSubmitted(false);
+                    setSheriffResult(null);
+                    navigate('/Day');
+                }, DAY_TRANSITION_DELAY_MS);
+                return;
+            }
+            if (data.phase === 'nomination') {
+                setNominationSubmitted(false);
+                setNominee(null);
+                setVoteResult(null);
+                navigate('/Nomination');
+                return;
+            }
+            if (data.phase === 'defense') {
+                if (data.nomineeId && data.nomineeName) {
+                    setNominee({ id: data.nomineeId, name: data.nomineeName });
+                }
+                navigate('/Defense');
+                return;
+            }
+            if (data.phase === 'vote') {
+                setVoteSubmitted(false);
+                if (data.nomineeId && data.nomineeName) {
+                    setNominee({ id: data.nomineeId, name: data.nomineeName });
+                }
+                navigate('/Vote');
+                return;
+            }
+            if (data.phase === 'vote-recap') {
+                if (data.voteResult) setVoteResult(data.voteResult);
+                // Clear any stale night narration so the TypewriterText on
+                // the VoteRecap page only renders the vote_recap story.
+                setNarration(null);
+                navigate('/VoteRecap');
+                return;
+            }
+            if (data.phase === 'night') {
+                setNominee(null);
+                setNominationSubmitted(false);
+                setVoteSubmitted(false);
+                setNightSubmitted(false);
+                setSheriffResult(null);
+                setNarration(null);
                 navigate('/night');
-            }, INTRO_BEAT_MS);
+                return;
+            }
         };
 
         const onSheriffResult = (data: SheriffResult) => setSheriffResult(data);
         const onActionAcknowledged = () => setNightSubmitted(true);
+        const onNominationAcknowledged = () => setNominationSubmitted(true);
+        const onVoteAcknowledged = () => setVoteSubmitted(true);
 
         onEvent('connected', onConnected);
         onEvent('lobby-created', onLobbyCreated);
@@ -113,8 +220,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         onEvent('user-disconnected', onUserDisconnected);
         onEvent('roles-assigned', onRolesAssigned);
         onEvent('story-narration', onStoryNarration);
+        onEvent('phase-changed', onPhaseChanged);
         onEvent('sheriff-result', onSheriffResult);
         onEvent('action-acknowledged', onActionAcknowledged);
+        onEvent('nomination-acknowledged', onNominationAcknowledged);
+        onEvent('vote-acknowledged', onVoteAcknowledged);
 
         return () => {
             offEvent('connected', onConnected);
@@ -124,9 +234,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             offEvent('user-disconnected', onUserDisconnected);
             offEvent('roles-assigned', onRolesAssigned);
             offEvent('story-narration', onStoryNarration);
+            offEvent('phase-changed', onPhaseChanged);
             offEvent('sheriff-result', onSheriffResult);
             offEvent('action-acknowledged', onActionAcknowledged);
+            offEvent('nomination-acknowledged', onNominationAcknowledged);
+            offEvent('vote-acknowledged', onVoteAcknowledged);
             if (introTimerRef.current) clearTimeout(introTimerRef.current);
+            if (dayTransitionTimerRef.current) clearTimeout(dayTransitionTimerRef.current);
         };
     }, [navigate]);
 
@@ -167,12 +281,50 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         });
     };
 
+    const triggerNightTransition = () => {
+            if (introTimerRef.current) clearTimeout(introTimerRef.current);
+            introTimerRef.current = setTimeout(() => {
+                setPhase('night');
+                navigate('/night');
+            }, 5000);
+        }
+
+    const endDiscussion = () => {
+        if (!lobbyIdRef.current) return;
+        sendEvent("end-discussion", { lobbyId: lobbyIdRef.current });
+    };
+
+    const submitNomination = (targetId: string) => {
+        if (!lobbyIdRef.current) return;
+        sendEvent("nominate", {
+            lobbyId: lobbyIdRef.current,
+            targetId,
+            round: roundRef.current,
+        });
+    };
+
+    const submitDayVote = (vote: boolean) => {
+        if (!lobbyIdRef.current) return;
+        sendEvent("submit-vote", {
+            lobbyId: lobbyIdRef.current,
+            vote,
+            round: roundRef.current,
+        });
+    };
+
+    const endVoteRecap = () => {
+        if (!lobbyIdRef.current) return;
+        sendEvent("end-vote-recap", { lobbyId: lobbyIdRef.current });
+    };
+
     return (
         <GameContext.Provider value={{
             lobbyId, isHost, players, name, setName, role,
             roleConfig, setRoleConfig, theme, setTheme, narration,
-            phase, round, nightSubmitted, sheriffResult,
-            createLobby, joinLobby, startGame, submitNightAction,
+            phase, round, nightSubmitted, nominationSubmitted, voteSubmitted,
+            sheriffResult, dayStartAlive, nominee, voteResult,
+            createLobby, joinLobby, startGame, submitNightAction, triggerNightTransition,
+            endDiscussion, submitNomination, submitDayVote, endVoteRecap
         }}>
             {children}
         </GameContext.Provider>

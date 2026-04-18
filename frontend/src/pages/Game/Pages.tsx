@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { Box, Stack, Title, Text, Loader, Group } from "@mantine/core";
 import { useGame } from "../../context/GameContext";
+import TypewriterText from "../../components/TypewriterText";
 
 const panelRed = {
   border: "4px solid #E94560",
@@ -15,7 +16,7 @@ const panelTeal = {
 } as const;
 
 export default function Game() {
-  const { role, narration, phase } = useGame();
+  const { role, narration, phase, triggerNightTransition } = useGame();
 
   if (!role) {
     return <Navigate to="/" replace />;
@@ -46,12 +47,12 @@ export default function Game() {
             </Title>
             {narration ? (
               <>
-                <Text
+                <TypewriterText
+                  text={narration.story}
                   size="lg"
-                  style={{ whiteSpace: "pre-wrap", color: "white" }}
-                >
-                  {narration.story}
-                </Text>
+                  style={{ color: "white" }}
+                  onDone={triggerNightTransition}
+                />
                 {phase === 'intro' && (
                   <Text size="sm" c="dimmed" fs="italic" ta="center">
                     The first night falls…

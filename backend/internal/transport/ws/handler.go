@@ -93,6 +93,7 @@ func (h *Hub) handleStartGame(client *Client, data json.RawMessage) {
 	var payload struct {
 		LobbyID string         `json:"lobbyId"`
 		Roles   map[string]int `json:"roles"`
+		Theme   string         `json:"theme"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil || payload.LobbyID == "" {
 		h.SendToClient(client.ID, MarshalMessage("error", map[string]string{
@@ -130,10 +131,14 @@ func (h *Hub) handleStartGame(client *Client, data json.RawMessage) {
 	// Fire-and-forget narration. Gemini can take 5–30s; we don't block the WS
 	// response on it. On failure we log and drop — the frontend should render
 	// without narration rather than error.
-	go h.generateGameIntro(payload.LobbyID, players, h.Manager.GetRoleConfig(payload.LobbyID))
+	theme := payload.Theme
+	if theme == "" {
+		theme = defaultStoryTheme
+	}
+	go h.generateGameIntro(payload.LobbyID, players, h.Manager.GetRoleConfig(payload.LobbyID), theme)
 }
 
-func (h *Hub) generateGameIntro(lobbyID string, players []models.Player, roles models.RoleConfig) {
+func (h *Hub) generateGameIntro(lobbyID string, players []models.Player, roles models.RoleConfig, theme string) {
 	if h.Story == nil {
 		return
 	}
@@ -151,7 +156,7 @@ func (h *Hub) generateGameIntro(lobbyID string, players []models.Player, roles m
 
 	if err := h.Story.InitGame(ctx, storyclient.InitRequest{
 		LobbyID:    lobbyID,
-		Theme:      defaultStoryTheme,
+		Theme:      theme,
 		Players:    names,
 		RoleConfig: roleConfig,
 	}); err != nil {

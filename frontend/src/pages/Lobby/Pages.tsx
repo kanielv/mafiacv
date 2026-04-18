@@ -10,14 +10,26 @@ import {
   Text,
   Button,
   ScrollArea,
+  Tooltip,
 } from "@mantine/core";
 import { useGame } from "../../context/GameContext";
 import LobbyChat from "../../components/LobbyChat";
 import RoleSelection from "../Home/RoleSelection";
+import ThemeSelection from "../../components/ThemeSelection";
+
+const MIN_PLAYERS = 3;
 
 export default function Lobby() {
   const navigate = useNavigate();
-  const { lobbyId, isHost, players, setRoleConfig, startGame } = useGame();
+  const { lobbyId, isHost, players, roleConfig, setRoleConfig, theme, setTheme, startGame } = useGame();
+
+  const roleTotal = Object.values(roleConfig).reduce((a, b) => a + b, 0);
+  const startDisabledReason =
+    players.length < MIN_PLAYERS
+      ? `Need at least ${MIN_PLAYERS} players (have ${players.length}).`
+      : roleTotal > players.length
+      ? `Configured roles (${roleTotal}) exceed players (${players.length}).`
+      : null;
 
   useEffect(() => {
     if (!lobbyId) navigate("/");
@@ -70,6 +82,11 @@ export default function Lobby() {
             {isHost && (
               <Paper shadow="xs" p="md" radius="md" withBorder>
                 <Title order={4} mb="sm">
+                  Theme
+                </Title>
+                <ThemeSelection value={theme} onChange={setTheme} />
+
+                <Title order={4} mt="lg" mb="sm">
                   Role Setup
                 </Title>
                 <RoleSelection
@@ -77,14 +94,22 @@ export default function Lobby() {
                   playerCount={players.length}
                   onChange={setRoleConfig}
                 />
-                <Button
-                  fullWidth
-                  mt="md"
-                  size="md"
-                  onClick={startGame}
+                <Tooltip
+                  label={startDisabledReason ?? ""}
+                  disabled={!startDisabledReason}
+                  withArrow
                 >
-                  Start Game
-                </Button>
+                  <Button
+                    fullWidth
+                    mt="md"
+                    size="md"
+                    onClick={startGame}
+                    disabled={!!startDisabledReason}
+                    data-disabled={!!startDisabledReason || undefined}
+                  >
+                    Start Game
+                  </Button>
+                </Tooltip>
               </Paper>
             )}
           </Stack>

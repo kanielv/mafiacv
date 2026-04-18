@@ -4,7 +4,6 @@ import "./index.css";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home/Pages";
 import About from "./pages/About/Pages";
-import Ryder from "./pages/RyderModal/Pages";
 import Michelle from "./pages/MHome/Pages";
 import Rules from "./pages/Rules/Pages";
 import Lobby from "./pages/Lobby/Pages";
@@ -22,7 +21,6 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/about" element={<About />} />
-              <Route path="/Ryder" element={<Ryder />} />
               <Route path="/Michelle" element={<Michelle />} />
               <Route path="/Rules" element={<Rules />} />
               <Route path="/lobby" element={<Lobby />} />

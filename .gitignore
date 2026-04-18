@@ -5,3 +5,5 @@ package-lock.json
 yarn.lock
 package.json
 .env
+story-service/mcp-server.db
+mcp-server/mcp-server.db

@@ -1,51 +1,74 @@
 import { Navigate } from "react-router-dom";
-import {
-  Container,
-  Paper,
-  Stack,
-  Title,
-  Text,
-  Loader,
-  Group,
-  Badge,
-} from "@mantine/core";
+import { Box, Stack, Title, Text, Loader, Group } from "@mantine/core";
 import { useGame } from "../../context/GameContext";
 
+const panelRed = {
+  border: "4px solid #E94560",
+  borderRadius: "0.5rem",
+  backgroundColor: "rgba(29,31,39,0.85)",
+} as const;
+
+const panelTeal = {
+  border: "4px solid #3E8E7E",
+  borderRadius: "0.5rem",
+  backgroundColor: "rgba(29,31,39,0.85)",
+} as const;
+
 export default function Game() {
-  const { role, narration } = useGame();
+  const { role, narration, phase } = useGame();
 
   if (!role) {
     return <Navigate to="/" replace />;
   }
 
-  return (
-    <Container size="md" py="xl">
-      <Stack gap="lg">
-        <Paper shadow="xs" p="md" radius="md" withBorder>
-          <Group justify="space-between">
-            <Title order={2}>Your Role</Title>
-            <Badge size="lg" variant="filled">
-              {role}
-            </Badge>
-          </Group>
-        </Paper>
+  if (phase === 'night') {
+    return <Navigate to="/night" replace />;
+  }
 
-        <Paper shadow="xs" p="lg" radius="md" withBorder>
+  return (
+    <div className="bg-mafiaBlack-default min-h-screen p-4 flex flex-col items-center">
+      <Stack gap="lg" style={{ width: "100%", maxWidth: 720 }}>
+        <Box p="lg" style={panelRed}>
+          <Stack gap={4} align="center">
+            <Text size="sm" c="dimmed" tt="uppercase" fw={700}>
+              Your Role
+            </Text>
+            <Title order={1} style={{ color: "#E94560", letterSpacing: "0.1em" }}>
+              {role.toUpperCase()}
+            </Title>
+          </Stack>
+        </Box>
+
+        <Box p="lg" style={panelTeal}>
           <Stack gap="sm">
-            <Title order={3}>The Tale Begins</Title>
+            <Title order={3} style={{ color: "#E94560" }}>
+              The Tale Begins
+            </Title>
             {narration ? (
-              <Text size="lg" style={{ whiteSpace: "pre-wrap" }}>
-                {narration.story}
-              </Text>
+              <>
+                <Text
+                  size="lg"
+                  style={{ whiteSpace: "pre-wrap", color: "white" }}
+                >
+                  {narration.story}
+                </Text>
+                {phase === 'intro' && (
+                  <Text size="sm" c="dimmed" fs="italic" ta="center">
+                    The first night falls…
+                  </Text>
+                )}
+              </>
             ) : (
               <Group gap="sm">
-                <Loader size="sm" />
-                <Text c="dimmed">The narrator is preparing the tale...</Text>
+                <Loader size="sm" color="#E94560" />
+                <Text c="dimmed">
+                  The narrator is preparing the tale...
+                </Text>
               </Group>
             )}
           </Stack>
-        </Paper>
+        </Box>
       </Stack>
-    </Container>
+    </div>
   );
 }

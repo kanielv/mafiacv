@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { sendEvent, onEvent, offEvent } from '../socket';
 import { Player } from "../models/player";
 import { useNavigate } from "react-router-dom";
@@ -11,8 +11,15 @@ export interface Narration {
     round: number;
 }
 
+export interface SheriffResult {
+    targetId: string;
+    role: string;
+    round: number;
+}
+
+export type Phase = 'lobby' | 'intro' | 'night' | 'ended';
+
 interface GameContextValue {
-    // State
     lobbyId: string | null;
     isHost: boolean;
     players: Player[];
@@ -20,17 +27,23 @@ interface GameContextValue {
     setName: (n: string) => void;
     role: string | null;
     roleConfig: RoleConfig;
-    setRoleConfig: (cfg: RoleConfig) => void;
+    setRoleConfig: React.Dispatch<React.SetStateAction<RoleConfig>>;
     theme: string;
     setTheme: (t: string) => void;
     narration: Narration | null;
-    // Actions
+    phase: Phase;
+    round: number;
+    nightSubmitted: boolean;
+    sheriffResult: SheriffResult | null;
     createLobby: () => void;
     joinLobby: (code: string) => void;
     startGame: () => void;
+    submitNightAction: (action: 'kill' | 'investigate' | 'protect', targetId: string) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
+
+const INTRO_BEAT_MS = 3000;
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
     const navigate = useNavigate();
@@ -43,7 +56,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const [roleConfig, setRoleConfig] = useState<RoleConfig>({});
     const [theme, setTheme] = useState<string>("");
     const [narration, setNarration] = useState<Narration | null>(null);
+    const [phase, setPhase] = useState<Phase>('lobby');
+    const [round, setRound] = useState<number>(0);
+    const [nightSubmitted, setNightSubmitted] = useState<boolean>(false);
+    const [sheriffResult, setSheriffResult] = useState<SheriffResult | null>(null);
 
+    const lobbyIdRef = useRef<string | null>(null);
+    const roundRef = useRef<number>(0);
+    const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => { lobbyIdRef.current = lobbyId; }, [lobbyId]);
+    useEffect(() => { roundRef.current = round; }, [round]);
 
     useEffect(() => {
         const onConnected = (data: { socketId: string }) => console.log('socket:', data.socketId);
@@ -62,13 +85,26 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
         const onRolesAssigned = (data: { role: string }) => {
             setRole(data.role);
+            setPhase('intro');
+            setRound(1);
             navigate('/game');
         };
 
         const onStoryNarration = (data: Narration) => {
-            if (data.storyType === 'game_intro') setNarration(data);
-            else console.log('story-narration (unhandled type):', data.storyType);
+            if (data.storyType !== 'game_intro') {
+                console.log('story-narration (unhandled type):', data.storyType);
+                return;
+            }
+            setNarration(data);
+            if (introTimerRef.current) clearTimeout(introTimerRef.current);
+            introTimerRef.current = setTimeout(() => {
+                setPhase('night');
+                navigate('/night');
+            }, INTRO_BEAT_MS);
         };
+
+        const onSheriffResult = (data: SheriffResult) => setSheriffResult(data);
+        const onActionAcknowledged = () => setNightSubmitted(true);
 
         onEvent('connected', onConnected);
         onEvent('lobby-created', onLobbyCreated);
@@ -77,6 +113,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         onEvent('user-disconnected', onUserDisconnected);
         onEvent('roles-assigned', onRolesAssigned);
         onEvent('story-narration', onStoryNarration);
+        onEvent('sheriff-result', onSheriffResult);
+        onEvent('action-acknowledged', onActionAcknowledged);
 
         return () => {
             offEvent('connected', onConnected);
@@ -86,16 +124,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             offEvent('user-disconnected', onUserDisconnected);
             offEvent('roles-assigned', onRolesAssigned);
             offEvent('story-narration', onStoryNarration);
+            offEvent('sheriff-result', onSheriffResult);
+            offEvent('action-acknowledged', onActionAcknowledged);
+            if (introTimerRef.current) clearTimeout(introTimerRef.current);
         };
     }, [navigate]);
 
-    const createLobby = () => {
+    const resetGameState = () => {
         setNarration(null);
+        setNightSubmitted(false);
+        setSheriffResult(null);
+        setPhase('lobby');
+        setRound(0);
+        setRole(null);
+    };
+
+    const createLobby = () => {
+        resetGameState();
         sendEvent("create-lobby", { name });
     };
 
     const joinLobby = (code: string) => {
-        setNarration(null);
+        resetGameState();
         sendEvent("join-lobby", { lobbyId: code, name });
         setLobbyId(code);
         setIsHost(false);
@@ -107,8 +157,23 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         sendEvent("start-game", { lobbyId, roles: roleConfig, theme });
     };
 
+    const submitNightAction = (action: 'kill' | 'investigate' | 'protect', targetId: string) => {
+        if (!lobbyIdRef.current) return;
+        sendEvent("night-action", {
+            lobbyId: lobbyIdRef.current,
+            action,
+            targetId,
+            round: roundRef.current,
+        });
+    };
+
     return (
-        <GameContext.Provider value={{ lobbyId, isHost, players, name, setName, role, roleConfig, setRoleConfig, theme, setTheme, narration, createLobby, joinLobby, startGame }}>
+        <GameContext.Provider value={{
+            lobbyId, isHost, players, name, setName, role,
+            roleConfig, setRoleConfig, theme, setTheme, narration,
+            phase, round, nightSubmitted, sheriffResult,
+            createLobby, joinLobby, startGame, submitNightAction,
+        }}>
             {children}
         </GameContext.Provider>
     );

@@ -221,10 +221,107 @@ func (m *Manager) StartGame(lobbyID string) ([]models.Player, error) {
 	}
 
 	lobby.Started = true
+	lobby.Round = 1
+	lobby.NightActions = map[string]models.NightAction{}
 
 	result := make([]models.Player, len(lobby.Players))
 	copy(result, lobby.Players)
 	return result, nil
+}
+
+// SubmitNightAction validates and records a role's night action.
+func (m *Manager) SubmitNightAction(lobbyID, actorID, action, targetID string, round int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	lobby, ok := m.lobbies[lobbyID]
+	if !ok {
+		return errors.New("lobby not found")
+	}
+	if !lobby.Started {
+		return errors.New("game not started")
+	}
+	if round != lobby.Round {
+		return errors.New("wrong round")
+	}
+
+	var actor, target *models.Player
+	for i := range lobby.Players {
+		p := &lobby.Players[i]
+		if p.SocketID == actorID {
+			actor = p
+		}
+		if p.SocketID == targetID {
+			target = p
+		}
+	}
+	if actor == nil {
+		return errors.New("actor not in lobby")
+	}
+	if !actor.IsAlive {
+		return errors.New("actor is dead")
+	}
+	if target == nil {
+		return errors.New("target not in lobby")
+	}
+	if !target.IsAlive {
+		return errors.New("target is dead")
+	}
+
+	switch action {
+	case "kill":
+		if actor.Role != "mafia" {
+			return errors.New("only mafia can kill")
+		}
+		if target.Role == "mafia" {
+			return errors.New("mafia cannot target mafia")
+		}
+	case "investigate":
+		if actor.Role != "sheriff" {
+			return errors.New("only sheriff can investigate")
+		}
+		if target.SocketID == actor.SocketID {
+			return errors.New("sheriff cannot investigate self")
+		}
+	case "protect":
+		if actor.Role != "medic" {
+			return errors.New("only medic can protect")
+		}
+	default:
+		return fmt.Errorf("unknown action: %s", action)
+	}
+
+	if lobby.NightActions == nil {
+		lobby.NightActions = map[string]models.NightAction{}
+	}
+	lobby.NightActions[actorID] = models.NightAction{
+		ActorID:  actorID,
+		Action:   action,
+		TargetID: targetID,
+		Round:    round,
+	}
+	return nil
+}
+
+// GetPlayerRole returns the role for a given socket ID, or empty string.
+func (m *Manager) GetPlayerRole(socketID string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	lobbyID, ok := m.playerLobby[socketID]
+	if !ok {
+		return ""
+	}
+	lobby, ok := m.lobbies[lobbyID]
+	if !ok {
+		return ""
+	}
+	for _, p := range lobby.Players {
+		if p.SocketID == socketID {
+			return p.Role
+		}
+	}
+	return ""
 }
 
 func (m *Manager) LobbyExists(lobbyID string) bool {

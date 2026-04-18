@@ -2,6 +2,8 @@ package lobby
 
 import (
 	"testing"
+
+	"github.com/kanielv/mafiacv/backend/internal/models"
 )
 
 func TestCreateLobby(t *testing.T) {
@@ -101,5 +103,101 @@ func TestJoinLobby_AlreadyStarted(t *testing.T) {
 	_, _, err := mgr.JoinLobby(lobbyID, "player-1", "Bob")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// setupNightLobby creates a started lobby with hand-assigned roles so tests
+// can exercise SubmitNightAction without fighting the Fisher–Yates shuffle.
+func setupNightLobby(t *testing.T) (*Manager, string) {
+	t.Helper()
+	mgr := NewManager()
+	lobbyID, _ := mgr.CreateLobby("mafia-1", "M1")
+	mgr.JoinLobby(lobbyID, "mafia-2", "M2")
+	mgr.JoinLobby(lobbyID, "sheriff-1", "S")
+	mgr.JoinLobby(lobbyID, "medic-1", "D")
+	mgr.JoinLobby(lobbyID, "town-1", "T")
+
+	lobby := mgr.lobbies[lobbyID]
+	lobby.Started = true
+	lobby.Round = 1
+	lobby.NightActions = map[string]models.NightAction{}
+	roleByID := map[string]string{
+		"mafia-1":   "mafia",
+		"mafia-2":   "mafia",
+		"sheriff-1": "sheriff",
+		"medic-1":   "medic",
+		"town-1":    "town",
+	}
+	for i := range lobby.Players {
+		lobby.Players[i].Role = roleByID[lobby.Players[i].SocketID]
+	}
+	return mgr, lobbyID
+}
+
+func TestSubmitNightAction_MafiaCannotKillMafia(t *testing.T) {
+	mgr, id := setupNightLobby(t)
+	if err := mgr.SubmitNightAction(id, "mafia-1", "kill", "mafia-2", 1); err == nil {
+		t.Error("expected error targeting fellow mafia")
+	}
+}
+
+func TestSubmitNightAction_SheriffCannotInvestigateSelf(t *testing.T) {
+	mgr, id := setupNightLobby(t)
+	if err := mgr.SubmitNightAction(id, "sheriff-1", "investigate", "sheriff-1", 1); err == nil {
+		t.Error("expected error investigating self")
+	}
+}
+
+func TestSubmitNightAction_WrongRoleRejected(t *testing.T) {
+	mgr, id := setupNightLobby(t)
+	if err := mgr.SubmitNightAction(id, "town-1", "kill", "sheriff-1", 1); err == nil {
+		t.Error("expected error: town submitted kill")
+	}
+}
+
+func TestSubmitNightAction_DeadActorRejected(t *testing.T) {
+	mgr, id := setupNightLobby(t)
+	lobby := mgr.lobbies[id]
+	for i := range lobby.Players {
+		if lobby.Players[i].SocketID == "mafia-1" {
+			lobby.Players[i].IsAlive = false
+		}
+	}
+	if err := mgr.SubmitNightAction(id, "mafia-1", "kill", "town-1", 1); err == nil {
+		t.Error("expected error for dead actor")
+	}
+}
+
+func TestSubmitNightAction_DeadTargetRejected(t *testing.T) {
+	mgr, id := setupNightLobby(t)
+	lobby := mgr.lobbies[id]
+	for i := range lobby.Players {
+		if lobby.Players[i].SocketID == "town-1" {
+			lobby.Players[i].IsAlive = false
+		}
+	}
+	if err := mgr.SubmitNightAction(id, "mafia-1", "kill", "town-1", 1); err == nil {
+		t.Error("expected error for dead target")
+	}
+}
+
+func TestSubmitNightAction_WrongRoundRejected(t *testing.T) {
+	mgr, id := setupNightLobby(t)
+	if err := mgr.SubmitNightAction(id, "mafia-1", "kill", "town-1", 2); err == nil {
+		t.Error("expected error for wrong round")
+	}
+}
+
+func TestSubmitNightAction_OverwriteAllowed(t *testing.T) {
+	mgr, id := setupNightLobby(t)
+	if err := mgr.SubmitNightAction(id, "mafia-1", "kill", "town-1", 1); err != nil {
+		t.Fatalf("first kill failed: %v", err)
+	}
+	if err := mgr.SubmitNightAction(id, "mafia-1", "kill", "sheriff-1", 1); err != nil {
+		t.Fatalf("overwrite kill failed: %v", err)
+	}
+	got := mgr.lobbies[id].NightActions["mafia-1"].TargetID
+	if got != "sheriff-1" {
+		t.Errorf("expected overwrite to sheriff-1, got %s", got)
 	}
 }

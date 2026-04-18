@@ -1,9 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Container,
+  Box,
   Grid,
-  Paper,
   Stack,
   Group,
   Title,
@@ -14,14 +13,42 @@ import {
 } from "@mantine/core";
 import { useGame } from "../../context/GameContext";
 import LobbyChat from "../../components/LobbyChat";
+import LobbyPlayer from "../../components/lobbyPlayer";
 import RoleSelection from "../Home/RoleSelection";
 import ThemeSelection from "../../components/ThemeSelection";
 
 const MIN_PLAYERS = 3;
 
+const panelRed = {
+  border: "4px solid #E94560",
+  borderRadius: "0.5rem",
+  backgroundColor: "rgba(29,31,39,0.85)",
+} as const;
+
+const panelTeal = {
+  border: "4px solid #3E8E7E",
+  borderRadius: "0.5rem",
+  backgroundColor: "rgba(29,31,39,0.85)",
+} as const;
+
 export default function Lobby() {
   const navigate = useNavigate();
-  const { lobbyId, isHost, players, roleConfig, setRoleConfig, theme, setTheme, startGame } = useGame();
+  const {
+    lobbyId,
+    isHost,
+    players,
+    roleConfig,
+    setRoleConfig,
+    theme,
+    setTheme,
+    startGame,
+  } = useGame();
+
+  useEffect(() => {
+    if (!lobbyId) navigate("/");
+  }, [lobbyId, navigate]);
+
+  if (!lobbyId) return null;
 
   const roleTotal = Object.values(roleConfig).reduce((a, b) => a + b, 0);
   const startDisabledReason =
@@ -31,33 +58,33 @@ export default function Lobby() {
       ? `Configured roles (${roleTotal}) exceed players (${players.length}).`
       : null;
 
-  useEffect(() => {
-    if (!lobbyId) navigate("/");
-  }, [lobbyId, navigate]);
-
-  if (!lobbyId) return null;
-
   return (
-    <Container size="lg" py="xl">
-      <Group justify="space-between" mb="lg">
-        <Title order={2}>Lobby: {lobbyId}</Title>
+    <div className="bg-mafiaBlack-default min-h-screen p-4">
+      <Group justify="space-between" mb="lg" wrap="nowrap" maw={1100} mx="auto">
+        <Title order={2} style={{ color: "#E94560" }}>
+          Lobby: {lobbyId}
+        </Title>
         <Button
-          variant="light"
+          variant="outline"
+          color="teal"
+          styles={{ root: { borderColor: "#3E8E7E", color: "#3E8E7E" } }}
           onClick={() => navigator.clipboard.writeText(lobbyId)}
         >
           Copy Code
         </Button>
       </Group>
 
-      <Grid gutter="md">
-        <Grid.Col span={4}>
-          <Paper shadow="xs" p="md" radius="md" withBorder>
+      <Grid gutter="md" maw={1100} mx="auto">
+        <Grid.Col span={{ base: 12, md: 4 }}>
+          <Box p="md" style={panelTeal}>
             <Stack>
-              <Title order={4}>Players ({players.length})</Title>
+              <Title order={4} style={{ color: "#E94560" }}>
+                Players ({players.length})
+              </Title>
               <ScrollArea h={400}>
                 <Stack gap="xs">
-                  {players.map((player) => (
-                    <Text key={player.socketID}>{player.name}</Text>
+                  {players.map((p) => (
+                    <LobbyPlayer key={p.socketID} name={p.name} />
                   ))}
                 </Stack>
               </ScrollArea>
@@ -67,33 +94,35 @@ export default function Lobby() {
                 </Text>
               )}
             </Stack>
-          </Paper>
+          </Box>
         </Grid.Col>
 
-        <Grid.Col span={8}>
+        <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack>
-            <Paper shadow="xs" p="md" radius="md" withBorder>
-              <Title order={4} mb="sm">
+            <Box p="md" style={panelTeal}>
+              <Title order={4} mb="sm" style={{ color: "#E94560" }}>
                 Chat
               </Title>
               <LobbyChat />
-            </Paper>
+            </Box>
 
             {isHost && (
-              <Paper shadow="xs" p="md" radius="md" withBorder>
-                <Title order={4} mb="sm">
+              <Box p="md" style={panelRed}>
+                <Title order={4} mb="sm" style={{ color: "#E94560" }}>
                   Theme
                 </Title>
                 <ThemeSelection value={theme} onChange={setTheme} />
 
-                <Title order={4} mt="lg" mb="sm">
+                <Title order={4} mt="lg" mb="sm" style={{ color: "#E94560" }}>
                   Role Setup
                 </Title>
                 <RoleSelection
                   lobbyId={lobbyId}
                   playerCount={players.length}
+                  value={roleConfig}
                   onChange={setRoleConfig}
                 />
+
                 <Tooltip
                   label={startDisabledReason ?? ""}
                   disabled={!startDisabledReason}
@@ -103,18 +132,21 @@ export default function Lobby() {
                     fullWidth
                     mt="md"
                     size="md"
+                    variant="outline"
+                    color="red"
                     onClick={startGame}
                     disabled={!!startDisabledReason}
                     data-disabled={!!startDisabledReason || undefined}
+                    styles={{ root: { borderWidth: "4px" } }}
                   >
                     Start Game
                   </Button>
                 </Tooltip>
-              </Paper>
+              </Box>
             )}
           </Stack>
         </Grid.Col>
       </Grid>
-    </Container>
+    </div>
   );
 }

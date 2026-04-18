@@ -73,3 +73,4 @@ go build -o main ./cmd/app  # Build binary
 - `frontend/src/socket.ts` — WebSocket client abstraction
 - `frontend/src/pages/Home/Pages.tsx` — main lobby UI + WebSocket integration
 - `frontend/src/pages/Home/RoleSelection.tsx` — host role configuration UI (Mafia, Medic, Sheriff, Jester)
+- `plans/` — has all the plans and design documents to access

@@ -1,67 +1,67 @@
-import { useState } from "react";
 import { Button, Group, Text } from "@mantine/core";
 
 interface RoleSelectionProps {
   lobbyId: string;
   playerCount: number;
-  onChange: (roles: Record<string, number>) => void;
+  value: Record<string, number>;
+  onChange: (
+    updater: (prev: Record<string, number>) => Record<string, number>
+  ) => void;
 }
+
+const ROLES = [
+  { label: "Mafia", key: "mafia" },
+  { label: "Medic", key: "medic" },
+  { label: "Sheriff", key: "sheriff" },
+  { label: "Jester", key: "jester" },
+] as const;
 
 const RoleSelection: React.FC<RoleSelectionProps> = ({
   playerCount,
+  value,
   onChange,
 }) => {
-  const [mafia, setMafia] = useState(0);
-  const [medic, setMedic] = useState(0);
-  const [sheriff, setSheriff] = useState(0);
-  const [jester, setJester] = useState(0);
-
-  const total = mafia + medic + sheriff + jester;
+  const total = ROLES.reduce((sum, r) => sum + (value[r.key] ?? 0), 0);
   const townCount = Math.max(playerCount - total, 0);
 
-  const update = (
-    role: string,
-    delta: number,
-    current: number,
-    setter: (n: number) => void,
-    snapshot: Record<string, number>
-  ) => {
-    const next = Math.max(current + delta, 0);
-    setter(next);
-    onChange({ ...snapshot, [role]: next });
+  const adjust = (key: string, delta: number) => {
+    onChange((prev) => {
+      const current = prev[key] ?? 0;
+      const next = Math.max(current + delta, 0);
+      const others = ROLES.reduce(
+        (sum, r) => (r.key === key ? sum : sum + (prev[r.key] ?? 0)),
+        0
+      );
+      if (delta > 0 && others + next > playerCount) return prev;
+      return { ...prev, [key]: next };
+    });
   };
-
-  const snapshot = { mafia, medic, sheriff, jester };
-
-  const roles = [
-    { label: "Mafia", key: "mafia", count: mafia, setter: setMafia },
-    { label: "Medic", key: "medic", count: medic, setter: setMedic },
-    { label: "Sheriff", key: "sheriff", count: sheriff, setter: setSheriff },
-    { label: "Jester", key: "jester", count: jester, setter: setJester },
-  ];
 
   return (
     <div>
-      {roles.map(({ label, key, count, setter }) => (
-        <Group key={key}>
-          <Text>{label}</Text>
-          <Text>{count}</Text>
-          <Button
-            onClick={() => update(key, 1, count, setter, snapshot)}
-            size="xs"
-            disabled={total >= playerCount}
-          >
-            +
-          </Button>
-          <Button
-            onClick={() => update(key, -1, count, setter, snapshot)}
-            size="xs"
-            disabled={count === 0}
-          >
-            -
-          </Button>
-        </Group>
-      ))}
+      {ROLES.map(({ label, key }) => {
+        const count = value[key] ?? 0;
+        return (
+          <Group key={key}>
+            <Text>{label}</Text>
+            <Text>{count}</Text>
+            <Button
+              onClick={() => adjust(key, 1)}
+              size="xs"
+              disabled={total >= playerCount}
+            >
+              +
+            </Button>
+            <Button
+              onClick={() => adjust(key, -1)}
+              size="xs"
+              disabled={count === 0}
+            >
+              -
+            </Button>
+          </Group>
+        );
+      })}
 
       <Text>Town: {townCount}</Text>
     </div>

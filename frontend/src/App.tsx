@@ -24,7 +24,7 @@ export default function App() {
               <Route path="/Michelle" element={<Michelle />} />
               <Route path="/Rules" element={<Rules />} />
               <Route path="/lobby" element={<Lobby />} />
-              <Route path="/Night" element={<Night />} />
+              <Route path="/night" element={<Night />} />
               <Route path="/Kitchen" element={<Kitchen />} />
               <Route path="/Day" element={<Day />} />
               <Route path="/game" element={<Game />} />

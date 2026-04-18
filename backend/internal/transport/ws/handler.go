@@ -24,6 +24,8 @@ func (h *Hub) HandleMessage(client *Client, msg models.WSMessage) {
 		h.handleStartGame(client, msg.Data)
 	case "chat-message":
 		h.handleChatMessage(client, msg.Data)
+	case "night-action":
+		h.handleNightAction(client, msg.Data)
 	default:
 		log.Printf("unknown event: %s", msg.Event)
 		h.SendToClient(client.ID, MarshalMessage("error", map[string]string{
@@ -206,6 +208,56 @@ func (h *Hub) handleChatMessage(client *Client, data json.RawMessage) {
 	h.BroadcastToRoom(payload.LobbyID, MarshalMessage("chat-message", chatMsg))
 }
 
+// handleNightAction routes a role's night action through the manager and
+// emits private follow-up events only to the actor.
+func (h *Hub) handleNightAction(client *Client, data json.RawMessage) {
+	var payload struct {
+		LobbyID  string `json:"lobbyId"`
+		Action   string `json:"action"`
+		TargetID string `json:"targetId"`
+		Round    int    `json:"round"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil || payload.LobbyID == "" || payload.Action == "" || payload.TargetID == "" {
+		h.SendToClient(client.ID, MarshalMessage("error", map[string]string{
+			"message": "lobbyId, action, and targetId are required",
+		}))
+		return
+	}
+
+	if err := h.Manager.SubmitNightAction(payload.LobbyID, client.ID, payload.Action, payload.TargetID, payload.Round); err != nil {
+		h.SendToClient(client.ID, MarshalMessage("error", map[string]string{
+			"message": err.Error(),
+		}))
+		return
+	}
+
+	if payload.Action == "investigate" {
+		role := h.Manager.GetPlayerRole(payload.TargetID)
+		h.SendToClient(client.ID, MarshalMessage("sheriff-result", map[string]any{
+			"targetId": payload.TargetID,
+			"role":     role,
+			"round":    payload.Round,
+		}))
+		return
+	}
+
+	h.SendToClient(client.ID, MarshalMessage("action-acknowledged", map[string]any{
+		"action": payload.Action,
+		"round":  payload.Round,
+	}))
+}
+
+// sanitizePlayers returns a copy of players with Role zeroed out, so
+// broadcast payloads don't leak roles after the game has started.
+func sanitizePlayers(players []models.Player) []models.Player {
+	out := make([]models.Player, len(players))
+	for i, p := range players {
+		p.Role = ""
+		out[i] = p
+	}
+	return out
+}
+
 // handleDisconnect cleans up lobby state when a client disconnects.
 func (h *Hub) handleDisconnect(client *Client) {
 	lobbyID, remaining := h.Manager.RemovePlayer(client.ID)
@@ -219,7 +271,7 @@ func (h *Hub) handleDisconnect(client *Client) {
 
 	if len(remaining) > 0 {
 		h.BroadcastToRoom(lobbyID, MarshalMessage("players-updated", map[string]any{
-			"players": remaining,
+			"players": sanitizePlayers(remaining),
 		}))
 	}
 }

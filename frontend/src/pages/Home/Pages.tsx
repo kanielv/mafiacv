@@ -1,95 +1,117 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
-  MantineProvider,
+  Box,
   Button,
+  Stack,
   TextInput,
   Title,
-  List,
   Text,
-  Container,
+  Tooltip,
+  Divider,
 } from "@mantine/core";
-import { theme } from "../../theme";
-import RoleSelection from "./RoleSelection";
-import LobbyChat from "../../components/LobbyChat";
-import { Player } from "../../models/player";
-import GoogleTTS from "../../GoogleTTS";
-import { sendEvent, onEvent, offEvent, getSocketId } from "../../socket";
 import { useGame } from "../../context/GameContext";
 
+const darkInputStyles = {
+  input: {
+    backgroundColor: "#1D1F27",
+    color: "white",
+    borderColor: "#3E8E7E",
+    borderWidth: "2px",
+  },
+  label: { color: "white" },
+} as const;
+
 export default function Home() {
-  const { name, setName, lobbyId, isHost, createLobby, joinLobby, startGame, players, setRoleConfig, role } = useGame();
+  const { name, setName, createLobby, joinLobby } = useGame();
   const [inputLobbyId, setInputLobbyId] = useState("");
-  const [story, setStory] = useState("");
-  
-  const generateStory = () => {
-    sendEvent("generate-story", {
-      code: "reirere",
-      names: ["ryder", "wilson", "lazzy"],
-      victim: "lazzy",
-      killer: "ryder",
-      location: "the beach",
-    });
-    console.log("story created!");
-  };
+
+  const needsName = name.trim().length === 0;
+  const canJoin = !needsName && inputLobbyId.trim().length > 0;
 
   return (
-    <MantineProvider theme={theme}>
-      <div className="home">
-        <div style={{ padding: "20px" }}>
-          <Title order={2}>
-            {lobbyId ? `Lobby ID: ${lobbyId}` : "Welcome to the Game!"}
+    <div className="bg-mafiaBlack-default min-h-screen flex items-center justify-center p-4">
+      <Stack align="center" gap="lg" style={{ width: "100%", maxWidth: 460 }}>
+        <Stack align="center" gap={4}>
+          <Title order={1} style={{ color: "#E94560", letterSpacing: "0.2em" }}>
+            MAFIA
           </Title>
-            <div>
+          <Text c="dimmed" size="sm">
+            a social deduction tale
+          </Text>
+        </Stack>
+
+        <Box
+          p="lg"
+          style={{
+            border: "4px solid #E94560",
+            borderRadius: "0.5rem",
+            backgroundColor: "rgba(29,31,39,0.85)",
+            width: "100%",
+          }}
+        >
+          <Stack gap="md">
+            <TextInput
+              label="Name"
+              placeholder="Enter your name"
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+              styles={darkInputStyles}
+            />
+
+            <Tooltip
+              label="Enter a name first"
+              disabled={!needsName}
+              withArrow
+            >
               <Button
+                fullWidth
+                size="md"
+                variant="outline"
+                color="red"
+                disabled={needsName}
                 onClick={createLobby}
-                color="green"
-                style={{ marginBottom: "20px" }}
+                styles={{ root: { borderWidth: "4px" } }}
               >
                 Host Game
               </Button>
-              <TextInput
-                placeholder="Enter Lobby ID"
-                value={inputLobbyId}
-                onChange={(e) => setInputLobbyId(e.currentTarget.value)}
-                style={{ marginBottom: "20px" }}
-              />
-              <TextInput
-                label="Name"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(event) => {
-                  setName(event.currentTarget.value);
-                }}
-              />
+            </Tooltip>
 
+            <Divider
+              label={<Text c="dimmed">— or —</Text>}
+              labelPosition="center"
+              color="#3E8E7E"
+            />
+
+            <TextInput
+              label="Lobby Code"
+              placeholder="e.g. ABC123"
+              value={inputLobbyId}
+              onChange={(e) => setInputLobbyId(e.currentTarget.value)}
+              styles={darkInputStyles}
+            />
+
+            <Tooltip
+              label={needsName ? "Enter a name first" : "Enter a lobby code"}
+              disabled={canJoin}
+              withArrow
+            >
               <Button
-                onClick={() => {
-                  if (name && inputLobbyId) {
-                    joinLobby(inputLobbyId);
-                  } else {
-                    console.log("Name and join code are required");
-                  }
+                fullWidth
+                size="md"
+                variant="outline"
+                color="teal"
+                disabled={!canJoin}
+                onClick={() => joinLobby(inputLobbyId.trim())}
+                styles={{
+                  root: { borderWidth: "4px", borderColor: "#3E8E7E", color: "#3E8E7E" },
                 }}
-                color="green"
               >
                 Join Game
               </Button>
-
-              <Button
-                onClick={() => {
-                  generateStory();
-                }}
-                color="green"
-                style={{ marginLeft: "20px" }}
-              >
-                Generate Story
-              </Button>
-
-              <GoogleTTS placeholderText={story} />
-            </div>
-        </div>
-      </div>
-    </MantineProvider>
+            </Tooltip>
+          </Stack>
+        </Box>
+      </Stack>
+    </div>
   );
 }

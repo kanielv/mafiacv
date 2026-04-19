@@ -14,6 +14,7 @@ import Vote from "./pages/Vote/Pages";
 import VoteRecap from "./pages/VoteRecap/Pages";
 import Day from "./pages/DayText/Pages";
 import Game from "./pages/Game/Pages";
+import GameOver from "./pages/GameOver/Pages";
 import { GameProvider } from "./context/GameContext";
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/VoteRecap" element={<VoteRecap />} />
               <Route path="/Day" element={<Day />} />
               <Route path="/game" element={<Game />} />
+              <Route path="/GameOver" element={<GameOver />} />
             </Routes>
           </GameProvider>
         </Router>

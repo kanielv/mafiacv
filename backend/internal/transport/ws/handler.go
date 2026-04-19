@@ -14,6 +14,7 @@ import (
 const storyIntroTimeout = 60 * time.Second
 const defaultStoryTheme = "classic noir"
 const phaseSeconds = 10
+const gameEndNarrationDelay = 20 * time.Second
 
 // HandleMessage dispatches incoming WebSocket messages by event type.
 func (h *Hub) HandleMessage(client *Client, msg models.WSMessage) {
@@ -277,6 +278,10 @@ func (h *Hub) handleNightAction(client *Client, data json.RawMessage) {
 	}))
 
 	go h.generateNightRecap(payload.LobbyID, resolution, players, h.Manager.GetRoleConfig(payload.LobbyID))
+
+	if outcome, err := h.Manager.CheckWinCondition(payload.LobbyID); err == nil && outcome.Winner != "" {
+		go h.endGameFlow(payload.LobbyID, outcome.Winner, "night_recap")
+	}
 }
 
 func (h *Hub) generateNightRecap(lobbyID string, res lobby.NightResolution, players []models.Player, roles models.RoleConfig) {
@@ -561,6 +566,10 @@ func (h *Hub) resolveDayVote(lobbyID string, round int) {
 	}
 
 	go h.generateVoteRecap(lobbyID, res, players, h.Manager.GetRoleConfig(lobbyID))
+
+	if outcome, err := h.Manager.CheckWinCondition(lobbyID); err == nil && outcome.Winner != "" {
+		go h.endGameFlow(lobbyID, outcome.Winner, "vote_recap")
+	}
 }
 
 func (h *Hub) handleEndVoteRecap(client *Client, data json.RawMessage) {
@@ -631,6 +640,82 @@ func (h *Hub) generateVoteRecap(lobbyID string, res lobby.VoteResolution, player
 		"story":     resp.Story,
 		"round":     resp.Round,
 	}))
+}
+
+// endGameFlow runs after a terminal night_recap or vote_recap: it marks the
+// lobby ended, waits for the preceding recap narration to play on clients,
+// generates and broadcasts the final ending narration, emits a game-ended
+// event, and tears down the lobby and its story-service state.
+//
+// afterNarration is the StoryType of the recap that was just broadcast — the
+// flow waits gameEndNarrationDelay so that recap finishes before the ending
+// plays on the client.
+func (h *Hub) endGameFlow(lobbyID, winner, afterNarration string) {
+	finalPlayers, err := h.Manager.EndGame(lobbyID, winner)
+	if err != nil {
+		log.Printf("end game for %s: %v", lobbyID, err)
+		return
+	}
+	if finalPlayers == nil {
+		// Already ended — another trigger won the race.
+		return
+	}
+
+	// Let the preceding recap narration play before overlaying the ending.
+	_ = afterNarration
+	time.Sleep(gameEndNarrationDelay)
+
+	round := 0
+	if _, r, ok := h.Manager.GetPhaseAndRound(lobbyID); ok {
+		round = r
+	}
+
+	if h.Story != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), storyIntroTimeout)
+		storyPlayers := make([]storyclient.Player, 0, len(finalPlayers))
+		for _, p := range finalPlayers {
+			storyPlayers = append(storyPlayers, storyclient.Player{
+				Name:    p.Name,
+				IsAlive: p.IsAlive,
+				Role:    p.Role,
+			})
+		}
+		resp, err := h.Story.GenerateStory(ctx, storyclient.GenerateRequest{
+			LobbyID:    lobbyID,
+			StoryType:  "game_ending",
+			Round:      round,
+			Events:     []storyclient.Event{{EventType: "game_ending", Result: winner}},
+			Players:    storyPlayers,
+			RoleConfig: map[string]int(h.Manager.GetRoleConfig(lobbyID)),
+		})
+		cancel()
+		if err != nil {
+			log.Printf("story generate game_ending for %s: %v", lobbyID, err)
+		} else {
+			h.BroadcastToRoom(lobbyID, MarshalMessage("story-narration", map[string]any{
+				"storyType": resp.StoryType,
+				"story":     resp.Story,
+				"round":     resp.Round,
+			}))
+			// Hold so clients can play the ending before results broadcast.
+			time.Sleep(gameEndNarrationDelay)
+		}
+	}
+
+	h.BroadcastToRoom(lobbyID, MarshalMessage("game-ended", map[string]any{
+		"winner":  winner,
+		"players": sanitizePlayers(finalPlayers),
+	}))
+
+	if h.Story != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), storyIntroTimeout)
+		if err := h.Story.CleanupGame(ctx, lobbyID); err != nil {
+			log.Printf("story cleanup for %s: %v", lobbyID, err)
+		}
+		cancel()
+	}
+
+	h.Manager.DeleteLobby(lobbyID)
 }
 
 // handleDisconnect cleans up lobby state when a client disconnects.

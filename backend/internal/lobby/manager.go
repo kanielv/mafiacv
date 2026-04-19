@@ -914,6 +914,85 @@ func pickWeighted(ids []string, weights map[string]int) string {
 	return ids[len(ids)-1]
 }
 
+type GameOutcome struct {
+	Winner     string // "mafia" | "town" | ""
+	MafiaAlive int
+	TownAlive  int
+}
+
+func (m *Manager) CheckWinCondition(lobbyID string) (GameOutcome, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	lobby, ok := m.lobbies[lobbyID]
+	if !ok {
+		return GameOutcome{}, errors.New("lobby not found")
+	}
+
+	mafiaAlive := 0
+	townAlive := 0
+	for i := range lobby.Players {
+		p := &lobby.Players[i]
+		if !p.IsAlive {
+			continue
+		}
+		if p.Role == "mafia" {
+			mafiaAlive++
+		} else {
+			townAlive++
+		}
+	}
+
+	out := GameOutcome{MafiaAlive: mafiaAlive, TownAlive: townAlive}
+	switch {
+	case mafiaAlive == 0:
+		out.Winner = "town"
+	case mafiaAlive >= townAlive:
+		out.Winner = "mafia"
+	}
+	return out, nil
+}
+
+// EndGame marks the lobby as ended, records the winner, and returns the
+// final player snapshot for broadcast. No-op (returns nil players, nil err)
+// if the lobby is already ended. Does NOT remove the lobby from the manager;
+// call DeleteLobby after the ending narration / cleanup completes.
+func (m *Manager) EndGame(lobbyID, winner string) ([]models.Player, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	lobby, ok := m.lobbies[lobbyID]
+	if !ok {
+		return nil, errors.New("lobby not found")
+	}
+	if lobby.Phase == "ended" {
+		return nil, nil
+	}
+
+	lobby.Phase = "ended"
+	lobby.Winner = winner
+
+	out := make([]models.Player, len(lobby.Players))
+	copy(out, lobby.Players)
+	return out, nil
+}
+
+// DeleteLobby removes a lobby and its player reverse-map entries. Safe to
+// call after EndGame once the ending narration has played out.
+func (m *Manager) DeleteLobby(lobbyID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	lobby, ok := m.lobbies[lobbyID]
+	if !ok {
+		return
+	}
+	for _, p := range lobby.Players {
+		delete(m.playerLobby, p.SocketID)
+	}
+	delete(m.lobbies, lobbyID)
+}
+
 func generateID() string {
 	b := make([]byte, 3)
 	rand.Read(b)

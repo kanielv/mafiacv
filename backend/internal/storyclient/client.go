@@ -18,6 +18,7 @@ const defaultTimeout = 45 * time.Second
 type Player struct {
 	Name    string `json:"name"`
 	IsAlive bool   `json:"isAlive"`
+	Role    string `json:"role,omitempty"`
 }
 
 type Event struct {

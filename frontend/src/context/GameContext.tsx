@@ -53,6 +53,8 @@ interface GameContextValue {
     dayStartAlive: Record<string, boolean>;
     nominee: Nominee | null;
     voteResult: VoteResult | null;
+    winner: string | null;
+    resetForHome: () => void;
     createLobby: () => void;
     joinLobby: (code: string) => void;
     startGame: () => void;
@@ -91,6 +93,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const [dayStartAlive, setDayStartAlive] = useState<Record<string, boolean>>({});
     const [nominee, setNominee] = useState<Nominee | null>(null);
     const [voteResult, setVoteResult] = useState<VoteResult | null>(null);
+    const [winner, setWinner] = useState<string | null>(null);
 
     const lobbyIdRef = useRef<string | null>(null);
     const playersRef = useRef<Player[]>([]);
@@ -134,6 +137,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
             if (data.storyType === 'vote_recap') {
+                setNarration(data);
+                return;
+            }
+            if (data.storyType === 'game_ending') {
                 setNarration(data);
                 return;
             }
@@ -208,6 +215,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             }
         };
 
+        const onGameEnded = (data: { winner: string; players: Player[] }) => {
+            setWinner(data.winner);
+            setPhase('ended');
+            if (data.players) setPlayers(data.players);
+            navigate('/GameOver');
+        };
+
         const onSheriffResult = (data: SheriffResult) => setSheriffResult(data);
         const onActionAcknowledged = () => setNightSubmitted(true);
         const onNominationAcknowledged = () => setNominationSubmitted(true);
@@ -225,6 +239,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         onEvent('action-acknowledged', onActionAcknowledged);
         onEvent('nomination-acknowledged', onNominationAcknowledged);
         onEvent('vote-acknowledged', onVoteAcknowledged);
+        onEvent('game-ended', onGameEnded);
 
         return () => {
             offEvent('connected', onConnected);
@@ -239,10 +254,33 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             offEvent('action-acknowledged', onActionAcknowledged);
             offEvent('nomination-acknowledged', onNominationAcknowledged);
             offEvent('vote-acknowledged', onVoteAcknowledged);
+            offEvent('game-ended', onGameEnded);
             if (introTimerRef.current) clearTimeout(introTimerRef.current);
             if (dayTransitionTimerRef.current) clearTimeout(dayTransitionTimerRef.current);
         };
     }, [navigate]);
+
+    const resetForHome = () => {
+        setLobbyId(null);
+        setIsHost(false);
+        setPlayers([]);
+        setRole(null);
+        setRoleConfig({});
+        setTheme("");
+        setNarration(null);
+        setPhase('lobby');
+        setRound(0);
+        setNightSubmitted(false);
+        setNominationSubmitted(false);
+        setVoteSubmitted(false);
+        setSheriffResult(null);
+        setDayStartAlive({});
+        setNominee(null);
+        setVoteResult(null);
+        setWinner(null);
+        if (introTimerRef.current) clearTimeout(introTimerRef.current);
+        if (dayTransitionTimerRef.current) clearTimeout(dayTransitionTimerRef.current);
+    };
 
     const resetGameState = () => {
         setNarration(null);
@@ -322,9 +360,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             lobbyId, isHost, players, name, setName, role,
             roleConfig, setRoleConfig, theme, setTheme, narration,
             phase, round, nightSubmitted, nominationSubmitted, voteSubmitted,
-            sheriffResult, dayStartAlive, nominee, voteResult,
+            sheriffResult, dayStartAlive, nominee, voteResult, winner,
             createLobby, joinLobby, startGame, submitNightAction, triggerNightTransition,
-            endDiscussion, submitNomination, submitDayVote, endVoteRecap
+            endDiscussion, submitNomination, submitDayVote, endVoteRecap, resetForHome
         }}>
             {children}
         </GameContext.Provider>

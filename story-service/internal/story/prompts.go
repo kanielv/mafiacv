@@ -61,6 +61,29 @@ func BuildUserPrompt(req GenerateRequest, history mcp.History) (string, error) {
 		writeEvents(&b, req.Events)
 		b.WriteString("\nTask: Narrate the outcome of the vote. ")
 		b.WriteString("Describe the eliminated player's fate and the town's reaction. Do not reveal their hidden role.")
+	case StoryTypeGameEnding:
+		winner := ""
+		if len(req.Events) > 0 {
+			winner = req.Events[0].Result
+		}
+		fmt.Fprintf(&b, "\nFinal outcome: %s wins.\n", winner)
+		b.WriteString("Final roster with roles:\n")
+		for _, p := range req.Players {
+			state := "alive"
+			if !p.IsAlive {
+				state = "dead"
+			}
+			role := p.Role
+			if role == "" {
+				role = "unknown"
+			}
+			fmt.Fprintf(&b, "- %s (%s, %s)\n", p.Name, role, state)
+		}
+		b.WriteString("\nTask: Narrate the ending of the game. ")
+		b.WriteString("Name which players were mafia and which were townsfolk (including medic and sheriff if present). ")
+		b.WriteString("Describe how the town settles, or falls, after the winning side prevails. ")
+		b.WriteString("Give it a conclusive, final feel. ")
+		b.WriteString("For THIS narration only, you MAY reveal hidden roles; the usual rule against revealing roles does not apply to the ending.")
 	}
 	return b.String(), nil
 }

@@ -19,6 +19,7 @@ var validStoryTypes = map[string]bool{
 	"night_recap": true,
 	"day_intro":   true,
 	"vote_recap":  true,
+	"game_ending": true,
 }
 
 const storeNarrativeSchema = `{
@@ -27,7 +28,7 @@ const storeNarrativeSchema = `{
   "properties": {
     "lobbyId":   {"type": "string", "minLength": 1},
     "round":     {"type": "integer", "minimum": 0},
-    "storyType": {"type": "string", "enum": ["game_intro", "night_recap", "day_intro", "vote_recap"]},
+    "storyType": {"type": "string", "enum": ["game_intro", "night_recap", "day_intro", "vote_recap", "game_ending"]},
     "story":     {"type": "string", "minLength": 1}
   },
   "additionalProperties": false

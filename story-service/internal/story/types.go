@@ -5,15 +5,16 @@ package story
 type StoryType string
 
 const (
-	StoryTypeGameIntro  StoryType = "game_intro"
-	StoryTypeNightRecap StoryType = "night_recap"
-	StoryTypeDayIntro   StoryType = "day_intro"
-	StoryTypeVoteRecap  StoryType = "vote_recap"
+	StoryTypeGameIntro   StoryType = "game_intro"
+	StoryTypeNightRecap  StoryType = "night_recap"
+	StoryTypeDayIntro    StoryType = "day_intro"
+	StoryTypeVoteRecap   StoryType = "vote_recap"
+	StoryTypeGameEnding  StoryType = "game_ending"
 )
 
 func (s StoryType) Valid() bool {
 	switch s {
-	case StoryTypeGameIntro, StoryTypeNightRecap, StoryTypeDayIntro, StoryTypeVoteRecap:
+	case StoryTypeGameIntro, StoryTypeNightRecap, StoryTypeDayIntro, StoryTypeVoteRecap, StoryTypeGameEnding:
 		return true
 	}
 	return false
@@ -22,6 +23,7 @@ func (s StoryType) Valid() bool {
 type Player struct {
 	Name    string `json:"name"`
 	IsAlive bool   `json:"isAlive"`
+	Role    string `json:"role,omitempty"`
 }
 
 type Event struct {

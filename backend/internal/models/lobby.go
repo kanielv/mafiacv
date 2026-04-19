@@ -29,4 +29,5 @@ type Lobby struct {
 	NomineeID    string                 `json:"-"`
 	NomineeName  string                 `json:"-"`
 	DayVotes     map[string]DayVote     `json:"-"`
+	Winner       string                 `json:"winner,omitempty"`
 }

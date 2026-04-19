@@ -22,6 +22,7 @@ var validEventTypes = map[string]bool{
 	"investigate": true,
 	"vote":        true,
 	"eliminate":   true,
+	"game_ending": true,
 }
 
 const storeGameEventSchema = `{
@@ -30,7 +31,7 @@ const storeGameEventSchema = `{
   "properties": {
     "lobbyId":   {"type": "string", "minLength": 1},
     "round":     {"type": "integer", "minimum": 0},
-    "eventType": {"type": "string", "enum": ["kill", "save", "investigate", "vote", "eliminate"]},
+    "eventType": {"type": "string", "enum": ["kill", "save", "investigate", "vote", "eliminate", "game_ending"]},
     "actor":     {"type": "string"},
     "target":    {"type": "string"},
     "result":    {"type": "string"}
